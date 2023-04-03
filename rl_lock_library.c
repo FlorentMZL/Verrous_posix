@@ -1,0 +1,224 @@
+/**
+ * JEDDI SKANDER - 21957008
+ * MAZELET FLORENT - XXXXXXXX
+*/
+
+#include "rl_lock_library.h"
+
+#define bool uint8_t
+#define false 0
+#define true !false
+
+#define DEBUG 1
+
+#define dbg(...)                \
+    if (DEBUG) {                \
+        printf("\033[0;33m[DEBUG]\t");    \
+        printf(__VA_ARGS__);    \
+    }                              
+#define info(...)               \
+    if (DEBUG) {                \
+        printf("\033[0;32m[INFO]\t");   \
+        printf(__VA_ARGS__);    \
+    }                       
+
+
+static struct {
+    int files_count;
+    rl_open_file *open_files[NB_FILES];
+} rl_all_files;
+
+static char* rl_gen_smo_path(int fd, struct stat* fstats, size_t max_size) {
+    info("getting file stats\n");
+    if (!fstats) fstats = malloc(sizeof(struct stat));
+    fstat(fd, fstats);
+    char* prefix = malloc(sizeof(char) * 2); // 1 caractère
+    prefix[0] = '/'; prefix[1] = '\0';
+    char* env_prefix = getenv("RL_LOCK_PREFIX");
+    if (env_prefix == NULL) env_prefix = "f"; // Valeur par défaut
+    dbg("prefix from environment = '%s'\n", env_prefix);	// DEBUG
+    strcat(prefix, env_prefix);
+    // Construction du path du SMO
+    char* fd_dev = malloc(sizeof(char) * max_size); char* fd_ino = malloc(sizeof(char) * max_size);
+    sprintf(fd_dev, "%ld", fstats->st_dev); sprintf(fd_ino, "%ld", fstats->st_ino);
+    char* smo_path = malloc(sizeof(char) * (1 + strlen(prefix) + 1 + strlen(fd_dev) + 1 + strlen(fd_ino) + 1));
+    strcpy(smo_path, prefix); strcat(smo_path, "_"); strcat(smo_path, fd_dev); strcat(smo_path, "_"); strcat(smo_path, fd_ino);
+    return smo_path;
+}
+
+/**
+ * Terminologie:
+ *      - "physique" = le fichier physique
+ *      - "SMO" = shared memory object
+ * Etapes:
+ * 1. Ouvrir le fichier "physique" avec open() - si le fichier n'existe pas, mettre rl_descriptor.file_descriptor à -1 et retourner
+ * 2. Récupérer les informations du fichier avec fstat()
+ * 3. Construire le path du SMO avec getenv() et les informations du fichier
+ * 4. Ouvrir le SMO avec shm_open()
+ *      + Si le SMO n'existe pas, il sera créé automatiquement MAIS il faut ftruncate()
+ * 5. Map le SMO en mémoire avec mmap()
+ * 6. Créer le lock avec les informations du fichier
+ *     + Si le lock_id est -1, c'est le premier lock donc next_lock = 0
+ *     + Sinon, next_lock = rl_file->first_lock
+ * 7. Ajouter le lock au tableau de locks du fichier
+ * 8. Ajouter le fichier au tableau de fichiers ouverts
+ * 9. Retourner le rl_descriptor
+*/
+rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
+    // Ouverture "physique" du fichier
+    info("opening file on disk\n");
+    int fd = open(path, flags, mode);
+    rl_descriptor rl_fd = { -1, NULL };
+    if (fd < 0) { // Le fichier physique existe
+        perror("[ERROR] rl_lock_library - 47 open()");
+        close(fd);
+        return rl_fd;
+    }
+    dbg("file descriptor = %d\n", fd);	// DEBUG
+    info("constructing shared memory object path\n")
+    // Récupération des informations du fichier
+    struct stat fstats;
+    info("getting file stats\n");
+    char* smo_path = rl_gen_smo_path(fd, &fstats, DEV_INO_MAX_SIZE);
+    dbg("file descriptor dev block = %ld, inode = %ld\n", fstats.st_dev, fstats.st_ino);	// DEBUG
+    // Récupération du prefixe du SMO
+    dbg("final shared memory object path = '%s'\n", smo_path);	// DEBUG
+    // Ouverture du SMO
+    info("opening and/or creating shared memory object\n");
+    int smo_fd = shm_open(smo_path, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+    bool smo_was_on_disk = false;
+    if (smo_fd == -1 && errno == EEXIST) {
+        // Le SMO existe déjà, on l'ouvre de nouveau sans O_CREAT
+        smo_fd = shm_open(smo_path, O_RDWR, S_IRUSR | S_IWUSR);
+        if (smo_fd == -1) {
+            perror("[ERROR] rl_lock_library - 87 shm_open()");
+            close(smo_fd);
+            return rl_fd;
+        }
+        dbg("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
+        smo_was_on_disk = true;
+    } else if (smo_fd == -1) {
+        perror("[ERROR] rl_lock_library - 81 shm_open()");
+        close(smo_fd);
+        return rl_fd;
+    }
+    if (!smo_was_on_disk) {
+        dbg("shared memory object doesn't exist, creating & truncating to %ld\n", sizeof(rl_open_file));	// DEBUG
+        ftruncate(smo_fd, sizeof(rl_open_file));
+    }
+    info("mapping shared memory object in memory\n");
+    // Map le fichier en mémoire - là, on a un pointeur sur la structure rl_open_file qui est mappée en mémoire à travers le SMO
+    void* mmap_ptr = mmap(NULL, sizeof(rl_open_file), PROT_READ | PROT_WRITE, MAP_SHARED, smo_fd, 0);
+    if (mmap_ptr == (void*) MAP_FAILED) {
+        perror("[ERROR] rl_lock_library - 109 mmap()");
+        rl_fd.file_descriptor = -1;
+        rl_fd.rl_file = NULL;
+        return rl_fd;
+    }
+    rl_open_file* rl_mapped_file = (rl_open_file*) mmap_ptr;
+    dbg("address of mapped file = %p\n", (void*) rl_mapped_file);	// DEBUG
+    if (!smo_was_on_disk) { // Si le SMO n'existe pas, remplir les valeurs par défaut de rl_open_file (énoncé)
+        dbg("shared memory object didn't exist, filling with default values\n");	// DEBUG
+        if (rl_mapped_file) dbg("mapped file is ok\n");    // DEBUG
+        rl_mapped_file->first_lock = -2; // (pas sûr)
+        dbg("first lock index set to %d\n", rl_mapped_file->first_lock);	// DEBUG
+        for (size_t i = 0; i < NB_LOCKS; i++) {
+            // dbg("handling lock n°%ld, ", i);	// DEBUG");
+            rl_lock lock;
+            // Valeurs par défaut
+            lock.next_lock = -2;
+            // A vérifier/modifier
+            {
+                lock.starting_offset = -1;
+                lock.length = -1;
+                lock.type = -1;
+                lock.owners_count = 0;
+                // printf("starting_offset = %ld, length = %ld, type = %d, owners_count = %ld\n", lock.starting_offset, lock.length, lock.type, lock.owners_count);	// DEBUG
+            }
+            rl_mapped_file->lock_table[i] = lock;
+        }
+    }
+    // On met à jour la structure de retour - mais quel descripteur? celui du fichier ou celui du SMO?
+    rl_fd.file_descriptor = fd;
+    rl_fd.rl_file = rl_mapped_file;
+    info("shared memory object mapped in memory\n");	// DEBUG
+    // On met à jour la structure qui contient tous les rl_open_file(s) - on vérifie avant si le fichier n'est pas déjà ouvert
+    info("checking if file is already opened (?), ");
+    for (size_t i = 0; i < rl_all_files.files_count; i++) {
+        // Est ce qu'on doit vérifier l'adresse de la structure ou juste le pointeur vers la structure? Ou même vérifier ça tout court?
+        // dbg("(void*) &rl_all_files.open_files[i] = %p vs %p = (void*) rl_mapped_file\n", (void*) &rl_all_files.open_files[i], (void*) rl_mapped_file);	// DEBUG
+        if (&rl_all_files.open_files[i] == &rl_mapped_file) {
+            printf("yes, returning\n");
+            return rl_fd;
+        }
+    }// Si on arrive ici, c'est que le fichier n'est pas déjà ouvert
+    printf("no, appending to opened files\n");
+    rl_all_files.files_count += 1;
+    rl_all_files.open_files[rl_all_files.files_count] = rl_mapped_file;
+    return rl_fd;
+}
+
+int rl_close(rl_descriptor rl_fd) {
+    int ret = close(rl_fd.file_descriptor);
+    info("file descriptor closed\n");
+    // On récupère le lock owner courant
+    rl_lock_owner current_lock_owner = { .thread_id = getpid(), .file_descriptor = rl_fd.file_descriptor };
+    info("removing lock owner & possibly lock\n");
+    int lock_index = -1;
+    for (size_t i = 0; i < NB_LOCKS; i++) {
+        const size_t owners_count = rl_fd.rl_file->lock_table[i].owners_count;
+        // On cherche le lock owner dans la liste des lock owners
+        for (size_t j = 0; j < owners_count; j++) {
+            if (rl_fd.rl_file->lock_table[i].lock_owners[j].thread_id == current_lock_owner.thread_id && rl_fd.rl_file->lock_table[i].lock_owners[j].file_descriptor == current_lock_owner.file_descriptor) {
+                dbg("found lock owner at index %ld\n", j);	// DEBUG
+                lock_index = j;
+                /**
+                 * On le supprime (en décalant tous les autres lock owners) - pas sûr que ça marche
+                */
+                rl_fd.rl_file->lock_table[i].lock_owners[j] = rl_fd.rl_file->lock_table[i].lock_owners[owners_count - 1];
+                rl_fd.rl_file->lock_table[i].owners_count -= 1;
+                break;
+            }
+        }
+    }
+    if (lock_index != -1 && rl_fd.rl_file->lock_table[lock_index].owners_count == 0) { // Si le verrou n'a plus d'owner, on le supprime
+        dbg("no more owners, removing lock\n");	// DEBUG
+        rl_fd.rl_file->lock_table[lock_index].starting_offset = -1;
+        rl_fd.rl_file->lock_table[lock_index].length = -1;
+        rl_fd.rl_file->lock_table[lock_index].type = -1;
+        rl_fd.rl_file->lock_table[lock_index].next_lock = -2;
+    }
+    return ret;
+}
+
+int rl_fcntl(rl_descriptor lfd, int command, struct flock *lck) {
+    dbg("rl_fcntl() called\n");	// DEBUG
+    // rl_lock_owner lock_owner = { .thread_id = getpid(), .file_descriptor = lfd.file_descriptor };
+    switch (command) {
+        case F_SETLK:
+            break;
+        case F_SETLKW:
+            break;
+        case F_GETLK:
+            break;
+    }
+    return 0;
+}
+
+int main(int argc, char** argv) {
+    char* file_name;
+    if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
+    info("file_name from args = '%s'\n", file_name);	// DEBUG
+    rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    dbg("first file descriptor = %d\n", rl_fd1.file_descriptor);	// DEBUG
+    rl_descriptor rl_fd2 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
+    dbg("second file descriptor = %d\n", rl_fd2.file_descriptor);	// DEBUG
+    info("unlinking shared memory object\n");
+    shm_unlink(rl_gen_smo_path(rl_fd1.file_descriptor, NULL, 24));
+    // TODO
+    info("closing first file descriptor\n");	// DEBUG
+    rl_close(rl_fd1);
+    info("closing second file descriptor\n");	// DEBUG
+    rl_close(rl_fd2);
+    return 0;
+}
