@@ -202,11 +202,39 @@ int rl_close(rl_descriptor rl_fd) {
     return ret;
 }
 
-int rl_fcntl(rl_descriptor lfd, int command, struct flock *lck) {
-    debug("rl_fcntl() called\n");	// DEBUG
-    // rl_lock_owner lock_owner = { .thread_id = getpid(), .file_descriptor = lfd.file_descriptor };
+int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
+    rl_lock_owner lock_owner = { .thread_id = getpid(), .file_descriptor = descriptor.file_descriptor };
     switch (command) {
         case F_SETLK:
+            // On recupère le type d'opération
+            switch (lock->l_type) {
+                case F_RDLCK:
+                    break;
+                case F_WRLCK:
+                    break;
+                case F_UNLCK:
+                    // On parcourt la liste des locks du fichier pour trouver le lock qui correspond à l'owner
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
+                        for (size_t j = 0; j < owners_count; j++) {
+                            if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                info("removing lock owner\n");
+                                // On le supprime (en décalant tous les autres lock owners) - pas sûr que ça marche
+                                descriptor.rl_file->lock_table[i].lock_owners[j] = descriptor.rl_file->lock_table[i].lock_owners[owners_count - 1];
+                                descriptor.rl_file->lock_table[i].owners_count -= 1;
+                                // Si le verrou n'a plus d'owner, on le supprime
+                                if (descriptor.rl_file->lock_table[i].owners_count == 0) {
+                                    debug("no more owners, removing lock\n");
+                                    descriptor.rl_file->lock_table[i].starting_offset = -1;
+                                    descriptor.rl_file->lock_table[i].length = -1;
+                                    descriptor.rl_file->lock_table[i].type = -1;
+                                    descriptor.rl_file->lock_table[i].next_lock = -2;
+                                }
+                            }
+                        }
+                    }
+                    return 0;
+            }
             break;
         case F_SETLKW:
             break;
