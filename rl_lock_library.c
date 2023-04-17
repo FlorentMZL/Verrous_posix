@@ -13,12 +13,13 @@
 
 #define debug(...)              \
     if (DEBUG) {                \
-        printf("\033[0;33m[DEBUG]\t");    \
+        printf("\033[0;33m[DEBUG] in '%s':\t", __func__);    \
         printf(__VA_ARGS__);    \
+        printf("\033[0;37m");   \
     }                              
 #define info(...)               \
     if (DEBUG) {                \
-        printf("\033[0;32m[INFO]\t");     \
+        printf("\033[0;32m[INFO] in '%s':\t", __func__);     \
         printf(__VA_ARGS__);    \
         printf("\033[0;37m");   \
     }                       
@@ -215,13 +216,43 @@ int rl_fcntl(rl_descriptor lfd, int command, struct flock *lck) {
     return 0;
 }
 
+rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor) {
+    // On duplique le descripteur de fichier
+    rl_descriptor new_descriptor;
+    // Nouveau lock owner
+    rl_lock_owner new_owner = { .thread_id = getpid(), .file_descriptor = new_file_descriptor };
+    // On cherche le lock owner dans la liste des lock owners
+    for (size_t i = 0; i < NB_LOCKS; i++) {
+        const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
+        for (size_t j = 0; j < owners_count; j++) {
+            if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == getpid()) {
+                debug("found lock owner at index %ld\n", j);	// DEBUG
+                // On ajoute le nouveau lock owner
+                descriptor.rl_file->lock_table[i].lock_owners[owners_count] = new_owner;
+                descriptor.rl_file->lock_table[i].owners_count += 1;
+                debug("added new lock owner\n");	// DEBUG
+                break;
+            }
+        }
+    }
+    // On retourne le nouveau descripteur de fichier
+    new_descriptor.file_descriptor = new_file_descriptor;
+    new_descriptor.rl_file = descriptor.rl_file;
+    return new_descriptor;
+}
+
+rl_descriptor rl_dup(rl_descriptor descriptor) {
+    info("calling rl_dup2() from rl_dup()\n");
+    return rl_dup2(descriptor, dup(descriptor.file_descriptor));
+}
+
 int main(int argc, char** argv) {
     char* file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
     info("file_name from args = '%s'\n", file_name);	// DEBUG
     rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     debug("first file descriptor = %d\n", rl_fd1.file_descriptor);	// DEBUG
-    rl_descriptor rl_fd2 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
+    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     debug("second file descriptor = %d\n", rl_fd2.file_descriptor);	// DEBUG
     info("unlinking shared memory object\n");
     char* smo_path = rl_gen_smo_path(rl_fd1.file_descriptor, NULL, 24);

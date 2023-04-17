@@ -67,3 +67,14 @@ int rl_close(rl_descriptor);
  * La fonction qui gère les verrous
 */
 int rl_fcntl(rl_descriptor, int, struct flock*);
+
+/**
+ * La fonction qui duplique un descripteur - (2)
+*/
+rl_descriptor rl_dup2(rl_descriptor, int);
+
+/**
+ * La fonction qui duplique un descripteur
+*/
+rl_descriptor rl_dup(rl_descriptor);
+
