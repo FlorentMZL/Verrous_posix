@@ -5,32 +5,14 @@
 
 #include "rl_lock_library.h"
 
-#define BOOLEAN uint8_t
-#define FALSE 0
-#define TRUE !FALSE
-
-#define DEBUG 1
-
-#define debug(...)              \
-    if (DEBUG) {                \
-        printf("\033[0;33m[DEBUG] in '%s':\t", __func__);    \
-        printf(__VA_ARGS__);    \
-        printf("\033[0;37m");   \
-    }                              
-#define info(...)               \
-    if (DEBUG) {                \
-        printf("\033[0;32m[INFO] in '%s':\t", __func__);     \
-        printf(__VA_ARGS__);    \
-        printf("\033[0;37m");   \
-    }                       
-
+int prout = 0;
 
 static struct {
     int files_count;
-    rl_open_file *open_files[NB_FILES];
+    rl_open_file* open_files[NB_FILES];
 } rl_all_files;
 
-static char* rl_gen_smo_path(int fd, struct stat* fstats, size_t max_size) {
+static char* rl_path(int fd, struct stat* fstats, size_t max_size) {
     BOOLEAN delete_fstats = FALSE;
     if (!fstats) { fstats = malloc(sizeof(struct stat)); delete_fstats = TRUE; }
     fstat(fd, fstats);
@@ -75,7 +57,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     int fd = open(path, flags, mode);
     rl_descriptor rl_fd = { -1, NULL };
     if (fd < 0) { // Le fichier physique existe
-        perror("[ERROR] rl_lock_library - 47 open()");
+        error("couldn't open file on disk\n");
         close(fd);
         return rl_fd;
     }
@@ -84,7 +66,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     // Récupération des informations du fichier
     struct stat fstats;
     info("getting file stats\n");
-    char* smo_path = rl_gen_smo_path(fd, &fstats, DEV_INO_MAX_SIZE);
+    char* smo_path = rl_path(fd, &fstats, DEV_INO_MAX_SIZE);
     debug("file descriptor dev block = %ld, inode = %ld\n", fstats.st_dev, fstats.st_ino);	// DEBUG
     // Récupération du prefixe du SMO
     debug("final shared memory object path = '%s'\n", smo_path);	// DEBUG
@@ -96,7 +78,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         // Le SMO existe déjà, on l'ouvre de nouveau sans O_CREAT
         smo_fd = shm_open(smo_path, O_RDWR, S_IRUSR | S_IWUSR);
         if (smo_fd == -1) {
-            perror("[ERROR] rl_lock_library - 87 shm_open()");
+            error("couldn't open shared memory object\n");
             close(smo_fd);
             free(smo_path);
             return rl_fd;
@@ -104,7 +86,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         debug("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
         smo_was_on_disk = TRUE;
     } else if (smo_fd == -1) {
-        perror("[ERROR] rl_lock_library - 81 shm_open()");
+        error("couldn't create shared memory object\n");
         close(smo_fd);
         free(smo_path);
         return rl_fd;
@@ -117,7 +99,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     // Map le fichier en mémoire - là, on a un pointeur sur la structure rl_open_file qui est mappée en mémoire à travers le SMO
     void* mmap_ptr = mmap(NULL, sizeof(rl_open_file), PROT_READ | PROT_WRITE, MAP_SHARED, smo_fd, 0);
     if (mmap_ptr == (void*) MAP_FAILED) {
-        perror("[ERROR] rl_lock_library - 109 mmap()");
+        error("couldn't map shared memory object in memory\n");
         rl_fd.file_descriptor = -1;
         rl_fd.rl_file = NULL;
         free(smo_path);
@@ -274,16 +256,49 @@ rl_descriptor rl_dup(rl_descriptor descriptor) {
     return rl_dup2(descriptor, dup(descriptor.file_descriptor));
 }
 
+pid_t rl_fork() {
+    pid_t pid = fork();
+    if (pid == 0) {
+        pid_t parent = getppid();
+        // On duplique les descripteurs de fichier
+        rl_open_file open_files[rl_all_files.files_count];
+        // On copie la liste des fichiers ouverts
+        memcpy(open_files, rl_all_files.open_files, rl_all_files.files_count * sizeof(rl_open_file));
+        for (size_t i = 0; i < rl_all_files.files_count; i++) {
+            // On examine chaque verrou
+            for (size_t j = 0; j < NB_LOCKS; j++) {
+                const size_t owners_count = open_files[i].lock_table[j].owners_count;
+                for (size_t k = 0; k < owners_count; k++) {
+                    // On recupere le descripteur de fichier du lock owner
+                    rl_lock_owner lock_owner = open_files[i].lock_table[j].lock_owners[k];
+                    if (lock_owner.thread_id == parent) {
+                        // On ajoute le nouveau lock owner
+                        open_files[i].lock_table[j].lock_owners[owners_count] = (rl_lock_owner) { .thread_id = getpid(), .file_descriptor = lock_owner.file_descriptor };
+                        open_files[i].lock_table[j].owners_count += 1;
+                        debug("added new lock owner\n");	// DEBUG
+                        break;
+                    }
+                }
+            }
+        }
+        // On copie la liste des fichiers ouverts dans la liste globale
+        memcpy(rl_all_files.open_files, open_files, rl_all_files.files_count * sizeof(rl_open_file));
+    } else if (pid < 0) {
+        error("fork() failed\n");
+    } 
+    return pid;
+}
+
 int main(int argc, char** argv) {
     char* file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
     info("file_name from args = '%s'\n", file_name);	// DEBUG
-    rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
     debug("first file descriptor = %d\n", rl_fd1.file_descriptor);	// DEBUG
     rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     debug("second file descriptor = %d\n", rl_fd2.file_descriptor);	// DEBUG
     info("unlinking shared memory object\n");
-    char* smo_path = rl_gen_smo_path(rl_fd1.file_descriptor, NULL, 24);
+    char* smo_path = rl_path(rl_fd1.file_descriptor, NULL, 24);
     shm_unlink(smo_path);
     // TODO
     info("closing first file descriptor\n");	// DEBUG

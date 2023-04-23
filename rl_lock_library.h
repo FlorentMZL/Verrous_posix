@@ -14,6 +14,66 @@
 #include <semaphore.h>          /* For semaphores   */
 
 /**
+ * #DEFINE propres à la librairie
+*/
+#define BOOLEAN uint8_t
+#define FALSE 0
+#define TRUE !FALSE
+
+#define DEBUG 1
+
+int memory_allocations = 0;
+
+#define debug(...)              \
+    if (DEBUG) {                \
+        printf("\033[0;33m[DEBUG]\tin '%s':\n\t", __func__);    \
+        printf(__VA_ARGS__);    \
+        printf("\033[0;37m");   \
+    }
+
+#define info(...)               \
+    {                           \
+        printf("\033[0;32m[INFO]\tin '%s':\n\t", __func__);     \
+        printf(__VA_ARGS__);    \
+        printf("\033[0;37m");   \
+    }                           
+
+#define error(...)              \
+    {                           \
+        printf("\033[0;31m[ERROR]\tin '%s':\n\t", __func__);    \
+        printf(__VA_ARGS__);    \
+        printf("\t(errno = %d)\n", errno);                       \
+        printf("\033[0;37m");   \
+    }
+
+#define malloc(...)             \
+    ({                          \
+        void *ptr = malloc(__VA_ARGS__);    \
+        debug("[%02d malloc() = %p]\n", memory_allocations + 1, ptr);  \
+        if (ptr == NULL) {                  \
+            error("malloc() failed");       \
+            exit(EXIT_FAILURE);             \
+        }                                   \
+        memory_allocations++;                           \
+        ptr;                                \
+    })
+
+#define free(...)               \
+    ({                          \
+        debug("[%02d free() = %p", memory_allocations, __VA_ARGS__);  \
+        free(__VA_ARGS__);      \
+        memory_allocations--;                           \
+        if (memory_allocations == 0) {                  \
+            printf("\033[0;33m | all memory deallocated]\n");            \
+        }                                               \
+        else {                                          \
+            printf("\033[0;33m]\n");                               \
+        }                                               \
+        printf("\033[0;37m");   \
+    })
+
+
+/**
  * !!!
  *    SUSCEPTIBLE (AVEC GRANDE PROBABILITE) DE CHANGER
  *    JE NE SAIS PAS QUELLES VALEURS METTRE
@@ -25,6 +85,8 @@
 
 // Potentiellement à modifier, valeur de l'énoncé
 #define DEV_INO_MAX_SIZE 24
+
+// Defines propres à la librairie
 
 typedef struct {
     // Le thread qui possède le lock
@@ -77,4 +139,9 @@ rl_descriptor rl_dup2(rl_descriptor, int);
  * La fonction qui duplique un descripteur
 */
 rl_descriptor rl_dup(rl_descriptor);
+
+/**
+ * La fonction qui crée un processus fils en copiant les verrous
+*/
+pid_t rl_fork();
 
