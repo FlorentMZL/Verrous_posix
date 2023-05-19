@@ -21,57 +21,65 @@
 #define TRUE !FALSE
 
 #define DEBUG 1
+#define DEBUG_MEMORY 0
 
 int memory_allocations = 0;
 
-#define debug(...)              \
-    if (DEBUG) {                \
-        printf("\033[0;33m[DEBUG]\tin '%s' (line %d):\n\t", __func__, __LINE__);    \
-        printf(__VA_ARGS__);    \
-        printf("\033[0;37m");   \
+#define debug(...)                                                                  \
+    if (DEBUG) {                                                                    \
+        printf("\033[0;33m[DBG #%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__); \
+        printf(__VA_ARGS__);                                                        \
+        printf("\n\033[0;37m");                                                     \
+    }                                                                               
+
+#define debug_memory(...)                                                           \
+    if (DEBUG_MEMORY) {                                                             \
+        printf("\033[0;33m[DBG #%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__); \
+        printf(__VA_ARGS__);                                                        \
+        printf("\n\033[0;37m");                                                     \
     }
 
-#define info(...)               \
-    {                           \
-        printf("\033[0;32m[INFO]\tin '%s' (line %d):\n\t", __func__, __LINE__);     \
-        printf(__VA_ARGS__);    \
-        printf("\033[0;37m");   \
-    }                           
+#define info(...)                                                                   \
+    {                                                                               \
+        printf("\033[0;32m[INF #%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__); \
+        printf(__VA_ARGS__);                                                        \
+        printf("\n\033[0;37m");                                                     \
+    }                          
 
-#define error(...)              \
-    {                           \
-        printf("\033[0;31m[ERROR]\tin '%s' (line %d):\n\t", __func__, __LINE__);    \
-        printf(__VA_ARGS__);    \
-        printf("\t(errno = %d)\n", errno);                       \
-        printf("\033[0;37m");   \
+#define error(...)                                                                  \
+    {                                                                               \
+        printf("\033[0;31m[ERR #%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__); \
+        printf(__VA_ARGS__);                                                        \
+        printf(" ERRNO = %d\n\033[0;37m", errno);                                   \
     }
 
-#define malloc(...)             \
-    ({                          \
-        void *ptr = malloc(__VA_ARGS__);    \
-        debug("[%02d malloc() = %p]\n", memory_allocations + 1, ptr);  \
-        if (ptr == NULL) {                  \
-            error("malloc() failed");       \
-            exit(EXIT_FAILURE);             \
-        }                                   \
-        memory_allocations++;                           \
-        ptr;                                \
+#define malloc(...)                                                                 \
+    ({                                                                              \
+        void *ptr = malloc(__VA_ARGS__);                                            \
+        debug_memory("[%02d malloc() = %p]\n", memory_allocations + 1, ptr);        \
+        if (ptr == NULL) {                                                          \
+            error("malloc() failed");                                               \
+            exit(EXIT_FAILURE);                                                     \
+        }                                                                           \
+        memory_allocations++;                                                       \
+        ptr;                                                                        \
     })
 
-#define free(...)               \
-    ({                          \
-        debug("[%02d free() = %p", memory_allocations, __VA_ARGS__);  \
-        free(__VA_ARGS__);      \
-        memory_allocations--;                           \
-        if (memory_allocations == 0) {                  \
-            printf("\033[0;33m | all memory deallocated]\n");            \
-        }                                               \
-        else {                                          \
-            printf("\033[0;33m]\n");                               \
-        }                                               \
-        printf("\033[0;37m");   \
+#define free(...)                                                                   \
+    ({                                                                              \
+        debug_memory("[%02d free() = %p", memory_allocations, __VA_ARGS__);         \
+        free(__VA_ARGS__);                                                          \
+        memory_allocations--;                                                       \
+        if (DEBUG_MEMORY) {                                                         \
+            if (memory_allocations == 0) {                                          \
+                printf("\033[0;33m | all memory deallocated]\n");                   \
+            }                                                                       \
+            else {                                                                  \
+                printf("\033[0;33m]\n");                                            \
+            }                                                                       \
+        }                                                                           \
+        printf("\033[0;37m");                                                       \
     })
-
 
 /**
  * !!!
