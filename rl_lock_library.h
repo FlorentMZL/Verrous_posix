@@ -27,30 +27,30 @@ int memory_allocations = 0;
 
 #define debug(...)                                                                  \
     if (DEBUG) {                                                                    \
-        printf("\033[0;33m[#%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__);    \
+        printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
         printf("\n\033[0;37m");                                                     \
     }                                                                               
 
 #define debug_memory(...)                                                           \
     if (DEBUG_MEMORY) {                                                             \
-        printf("\033[0;33m[#%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__);    \
+        printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
         printf("\n\033[0;37m");                                                     \
     }
 
 #define info(...)                                                                   \
     {                                                                               \
-        printf("\033[0;32m[#%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__);    \
+        printf("\033[0;32m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
         printf("\n\033[0;37m");                                                     \
     }                          
 
 #define error(...)                                                                  \
     {                                                                               \
-        printf("\033[0;31m[#%d] @ '%s' (%d)\t> ", getpid(), __func__, __LINE__);    \
+        printf("\033[0;31m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);      \
         printf(__VA_ARGS__);                                                        \
-        printf(" ERRNO = %d: %s\n\033[0;37m", errno, strerror(errno));              \
+        printf(": %s (%d)\n\033[0;37m", strerror(errno), errno);                    \
     }
 
 #define malloc(...)                                                                 \

@@ -467,6 +467,7 @@ ssize_t rl_read(rl_descriptor descriptor, void* buffer, size_t count) {
     errno = EACCES;
     return -1;
 }
+
 int main(int argc, char** argv) {
     char* file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
@@ -475,53 +476,52 @@ int main(int argc, char** argv) {
     rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
     debug("file descriptor = %d", rl_fd1.file_descriptor);	// DEBUG
 
-   /*/ // On duplique le descripteur de fichier
-    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
-    debug("file descriptor = %d", rl_fd2.file_descriptor);	// DEBUG
+    /*
+        // On duplique le descripteur de fichier
+        rl_descriptor rl_fd2 = rl_dup(rl_fd1);
+        debug("file descriptor = %d", rl_fd2.file_descriptor);	// DEBUG
 
-    // On pose un verrou en lecture sur le fichier
-    struct flock lock = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10 };
-    rl_fcntl(rl_fd1, F_SETLK, &lock);
-    debug("lock set");	// DEBUG
-*/
+        // On pose un verrou en lecture sur le fichier
+        struct flock lock = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10 };
+        rl_fcntl(rl_fd1, F_SETLK, &lock);
+        debug("lock set");	// DEBUG
+    */
+
     // On fork
-     struct flock lock = { .l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5 };
-        int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
-        if (return_value == -1) {
-            error("rl_fcntl() failed");
-        }
+    struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
+    int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
+    if (return_value == -1) error("could not set lock");
     pid_t pid = rl_fork();
     if (pid == 0) {
         // On pose un verrou en ecriture sur le fichier
-       
-        debug("lock set");	// DEBUG
+        debug("lock set"); // DEBUG
         // On lit le fichier
-        char buffer[10];
-        ssize_t re =rl_read(rl_fd1, buffer, 10);
-        if(re==-1){
-            error("rl_write() failed");
+        char buffer[6];
+        ssize_t re = rl_read(rl_fd1, buffer, 5);
+        buffer[5] = '\0';
+        if (re == -1) {
+            error("could not read file");
         }
-        debug("buffer = '%s'", buffer);	// DEBUG
+        debug("buffer = '%s'", buffer); // DEBUG
         // On ferme le descripteur de fichier
         rl_close(rl_fd1);
-        debug("file descriptor closed");	// DEBUG
-    } else if (pid < 0) {
-        error("fork() failed");
+        debug("file descriptor closed"); // DEBUG
     }
-    else {
-
-         char buffer[10] = "1234567890";
-        ssize_t wr= rl_write(rl_fd1, buffer, 10);
-        if(wr==-1){
-            error("rl_write() failed");
+    else if (pid < 0) {
+        error("fork() failed");
+    } else {
+        char buffer[10] = "1234567890";
+        ssize_t wr = rl_write(rl_fd1, buffer, 10);
+        if (wr == -1) {
+            error("could not write file");
         }
-        debug("buffer = '%s'", buffer);	// DEBUG
+        debug("buffer = '%s'", buffer); // DEBUG
     }
     info("unlinking shared memory object");
-    char* smo_path = rl_path(rl_fd1.file_descriptor, NULL, 24);
+    char *smo_path = rl_path(rl_fd1.file_descriptor, NULL, 24);
     shm_unlink(smo_path);
     // TODO
-    info("closing first file descriptor");	// DEBUG
+    info("closing first file descriptor"); // DEBUG
     rl_close(rl_fd1);
     free(smo_path);
     return 0;
