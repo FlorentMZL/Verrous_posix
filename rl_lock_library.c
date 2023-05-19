@@ -347,6 +347,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
     }
     return 0;
 }
+
 rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor) {
     // On duplique le descripteur de fichier
     rl_descriptor new_descriptor;
@@ -373,7 +374,6 @@ rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor) {
 }
 
 rl_descriptor rl_dup(rl_descriptor descriptor) {
-    info("calling rl_dup2() from rl_dup()");
     return rl_dup2(descriptor, dup(descriptor.file_descriptor));
 }
 
@@ -405,6 +405,7 @@ pid_t rl_fork() {
     } 
     return pid;
 }
+
 ssize_t rl_write(rl_descriptor descriptor, const void* buffer, size_t count) {
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++) {
@@ -413,9 +414,21 @@ ssize_t rl_write(rl_descriptor descriptor, const void* buffer, size_t count) {
             const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
             for (size_t j = 0; j < owners_count; j++) {
                 if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == getpid()) {
+                    // On vérifie que la position du curseur est bien dans l'intervalle
+                    if (lseek(descriptor.file_descriptor, 0, SEEK_CUR) < descriptor.rl_file->lock_table[i].starting_offset || lseek(descriptor.file_descriptor, 0, SEEK_CUR) > descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length) {
+                        errno = EACCES;
+                        return -1;
+                    }
+                    // On vérifie que la taille du buffer est bien dans l'intervalle
+                    if (count < 0 || count > descriptor.rl_file->lock_table[i].length) {
+                        errno = EACCES;
+                        return -1;
+                    }
+                    // On déplace le curseur à la position starting_offset
+                    lseek(descriptor.file_descriptor, descriptor.rl_file->lock_table[i].starting_offset, SEEK_SET);
                     // On écrit
                     return write(descriptor.file_descriptor, buffer, count);
-                }
+                }                    
             }
         }
     }
@@ -432,6 +445,18 @@ ssize_t rl_read(rl_descriptor descriptor, void* buffer, size_t count) {
             const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
             for (size_t j = 0; j < owners_count; j++) {
                 if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == getpid()) {
+                    // On vérifie que la position du curseur est bien dans l'intervalle
+                    if (lseek(descriptor.file_descriptor, 0, SEEK_CUR) < descriptor.rl_file->lock_table[i].starting_offset || lseek(descriptor.file_descriptor, 0, SEEK_CUR) > descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length) {
+                        errno = EACCES;
+                        return -1;
+                    }
+                    // On vérifie que la taille du buffer est bien dans l'intervalle
+                    if (count < 0 || count > descriptor.rl_file->lock_table[i].length) {
+                        errno = EACCES;
+                        return -1;
+                    }
+                    // On déplace le curseur à la position starting_offset
+                    lseek(descriptor.file_descriptor, descriptor.rl_file->lock_table[i].starting_offset, SEEK_SET);
                     // On lit
                     return read(descriptor.file_descriptor, buffer, count);
                 }
