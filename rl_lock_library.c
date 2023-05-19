@@ -190,11 +190,133 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
             debug("setting lock");
             // On recupère le type d'opération
             switch (lock->l_type) {
-                case F_RDLCK: /** TODO: implémenter */
-                    break;
-                case F_WRLCK: /** TODO: implémenter */
-                    break;
-                case F_UNLCK: /** TODO: vérifier que ça marche */
+                case F_RDLCK:
+                    debug("read lock requested by thread %d on file %d at offset %ld for %ld bytes", lock_owner.thread_id, lock_owner.file_descriptor, lock->l_start, lock->l_len);	// DEBUG
+                    // F_RDLCK: on vérifie si le fichier est déjà locké en écriture
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset != -1 && descriptor.rl_file->lock_table[i].type == F_WRLCK) {
+                            // On vérifie si le lock est compatible avec le lock en écriture
+                            if (descriptor.rl_file->lock_table[i].starting_offset <= lock->l_start && descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length >= lock->l_start + lock->l_len) {
+                                // On vérifie si le lock est déjà pris par le thread courant
+                                for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
+                                    if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                        // Le lock est déjà pris par le thread courant
+                                        debug("lock already taken by current thread");
+                                        return 0;
+                                    }
+                                }
+                                // Le lock n'est pas déjà pris par le thread courant
+                                // On ajoute le lock owner à la liste des lock owners
+                                descriptor.rl_file->lock_table[i].lock_owners[descriptor.rl_file->lock_table[i].owners_count] = lock_owner;
+                                descriptor.rl_file->lock_table[i].owners_count += 1;
+                                return 0;
+                            }
+                        }
+                    }
+                    // Si on arrive ici, c'est que le fichier n'est pas locké en écriture
+                    // On vérifie si le fichier est déjà locké en lecture
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset != -1 && descriptor.rl_file->lock_table[i].type == F_RDLCK) {
+                            // On vérifie si le lock est compatible avec le lock en lecture
+                            if (descriptor.rl_file->lock_table[i].starting_offset <= lock->l_start && descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length >= lock->l_start + lock->l_len) {
+                                // On vérifie si le lock est déjà pris par le thread courant
+                                for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
+                                    if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                        // Le lock est déjà pris par le thread courant
+                                        debug("lock already taken by current thread");
+                                        return 0;
+                                    }
+                                }
+                                // Le lock n'est pas déjà pris par le thread courant
+                                // On ajoute le lock owner à la liste des lock owners
+                                descriptor.rl_file->lock_table[i].lock_owners[descriptor.rl_file->lock_table[i].owners_count] = lock_owner;
+                                descriptor.rl_file->lock_table[i].owners_count += 1;
+                                return 0;
+                            }
+                        }
+                    }
+                    debug("no incompatible read lock, adding lock");
+                    // Si on arrive ici, c'est que le fichier n'est pas locké en lecture
+                    // On cherche un lock libre
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset == -1) {
+                            // On ajoute le lock
+                            descriptor.rl_file->lock_table[i].starting_offset = lock->l_start;
+                            descriptor.rl_file->lock_table[i].length = lock->l_len;
+                            descriptor.rl_file->lock_table[i].type = F_RDLCK;
+                            descriptor.rl_file->lock_table[i].next_lock = -2;
+                            // On ajoute le lock owner à la liste des lock owners
+                            descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
+                            descriptor.rl_file->lock_table[i].owners_count = 1;
+                            debug("lock added");
+                            return 0;
+                        }
+                    }
+                    // Si on arrive ici, c'est qu'il n'y a pas de lock libre
+                    debug("no free lock");
+                    errno = ENOLCK;
+                    return -1;
+                case F_WRLCK:
+                    // F_WRLCK: on vérifie si le fichier est déjà locké en écriture
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset != -1 && descriptor.rl_file->lock_table[i].type == F_WRLCK) {
+                            // On vérifie si le lock est compatible avec le lock en écriture
+                            if (descriptor.rl_file->lock_table[i].starting_offset <= lock->l_start && descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length >= lock->l_start + lock->l_len) {
+                                // On vérifie si le lock est déjà pris par le thread courant
+                                for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
+                                    if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                        // Le lock est déjà pris par le thread courant
+                                        return 0;
+                                    }
+                                }
+                                // Le lock n'est pas déjà pris par le thread courant
+                                // On ajoute le lock owner à la liste des lock owners
+                                descriptor.rl_file->lock_table[i].lock_owners[descriptor.rl_file->lock_table[i].owners_count] = lock_owner;
+                                descriptor.rl_file->lock_table[i].owners_count += 1;
+                                return 0;
+                            }
+                        }
+                    }
+                    // Si on arrive ici, c'est que le fichier n'est pas locké en écriture
+                    // On vérifie si le fichier est déjà locké en lecture
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset != -1 && descriptor.rl_file->lock_table[i].type == F_RDLCK) {
+                            // On vérifie si le lock est compatible avec le lock en lecture
+                            if (descriptor.rl_file->lock_table[i].starting_offset <= lock->l_start && descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length >= lock->l_start + lock->l_len) {
+                                // On vérifie si le lock est déjà pris par le thread courant
+                                for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
+                                    if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                        // Le lock est déjà pris par le thread courant
+                                        return 0;
+                                    }
+                                }
+                                // Le lock n'est pas déjà pris par le thread courant
+                                // On ajoute le lock owner à la liste des lock owners
+                                descriptor.rl_file->lock_table[i].lock_owners[descriptor.rl_file->lock_table[i].owners_count] = lock_owner;
+                                descriptor.rl_file->lock_table[i].owners_count += 1;
+                                return 0;
+                            }
+                        }
+                    }
+                    // Si on arrive ici, c'est que le fichier n'est pas locké en lecture ni en écriture
+                    // On cherche un lock libre
+                    for (size_t i = 0; i < NB_LOCKS; i++) {
+                        if (descriptor.rl_file->lock_table[i].starting_offset == -1) {
+                            // On ajoute le lock
+                            descriptor.rl_file->lock_table[i].starting_offset = lock->l_start;
+                            descriptor.rl_file->lock_table[i].length = lock->l_len;
+                            descriptor.rl_file->lock_table[i].type = F_WRLCK;
+                            descriptor.rl_file->lock_table[i].next_lock = -2;
+                            // On ajoute le lock owner à la liste des lock owners
+                            descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
+                            descriptor.rl_file->lock_table[i].owners_count = 1;
+                            return 0;
+                        }
+                    }
+                    // Si on arrive ici, c'est qu'il n'y a pas de lock libre
+                    errno = ENOLCK;
+                    return -1;
+                case F_UNLCK: /** todo vérifier que ça marche */
                     // On parcourt la liste des locks du fichier pour trouver le lock qui correspond à l'owner
                     for (size_t i = 0; i < NB_LOCKS; i++) {
                         const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
@@ -218,14 +340,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                     return 0;
             }
             break;
-        case F_SETLKW: /** TODO: implémenter */
+        case F_SETLKW: /** TODO: implémenter (extension) */
             break;
-        case F_GETLK: /** TODO: implémenter */
+        case F_GETLK: /** TODO: implémenter? (pas nécessaire selon le sujet ) */
             break;
     }
     return 0;
 }
-
 rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor) {
     // On duplique le descripteur de fichier
     rl_descriptor new_descriptor;
@@ -284,7 +405,43 @@ pid_t rl_fork() {
     } 
     return pid;
 }
+ssize_t rl_write(rl_descriptor descriptor, const void* buffer, size_t count) {
+    // On parcourt la liste des locks du fichier
+    for (size_t i = 0; i < NB_LOCKS; i++) {
+        // Si le lock est de type F_WRLCK et que le thread courant est dans la liste des lock owners, alors on peut écrire
+        if (descriptor.rl_file->lock_table[i].type == F_WRLCK) {
+            const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
+            for (size_t j = 0; j < owners_count; j++) {
+                if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == getpid()) {
+                    // On écrit
+                    return write(descriptor.file_descriptor, buffer, count);
+                }
+            }
+        }
+    }
+    // Sinon on ne peut pas écrire
+    errno = EACCES;
+    return -1;
+}
 
+ssize_t rl_read(rl_descriptor descriptor, void* buffer, size_t count) {
+    // On parcourt la liste des locks du fichier
+    for (size_t i = 0; i < NB_LOCKS; i++) {
+        // Si le lock est de type F_RDLCK et que le thread courant est dans la liste des lock owners, alors on peut lire
+        if (descriptor.rl_file->lock_table[i].type == F_RDLCK) {
+            const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
+            for (size_t j = 0; j < owners_count; j++) {
+                if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == getpid()) {
+                    // On lit
+                    return read(descriptor.file_descriptor, buffer, count);
+                }
+            }
+        }
+    }
+    // Sinon on ne peut pas lire
+    errno = EACCES;
+    return -1;
+}
 int main(int argc, char** argv) {
     char* file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
@@ -293,7 +450,7 @@ int main(int argc, char** argv) {
     rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
     debug("file descriptor = %d", rl_fd1.file_descriptor);	// DEBUG
 
-    // On duplique le descripteur de fichier
+   /*/ // On duplique le descripteur de fichier
     rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     debug("file descriptor = %d", rl_fd2.file_descriptor);	// DEBUG
 
@@ -301,28 +458,40 @@ int main(int argc, char** argv) {
     struct flock lock = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10 };
     rl_fcntl(rl_fd1, F_SETLK, &lock);
     debug("lock set");	// DEBUG
-
+*/
     // On fork
-    pid_t pid = rl_fork();
-    if (pid == 0) {
-        // On pose un verrou en ecriture sur le fichier
-        struct flock lock = { .l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5 };
-        int return_value = rl_fcntl(rl_fd2, F_SETLK, &lock);
+     struct flock lock = { .l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5 };
+        int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
         if (return_value == -1) {
             error("rl_fcntl() failed");
         }
+    pid_t pid = rl_fork();
+    if (pid == 0) {
+        // On pose un verrou en ecriture sur le fichier
+       
         debug("lock set");	// DEBUG
         // On lit le fichier
         char buffer[10];
-        read(rl_fd2.file_descriptor, buffer, 10);
+        ssize_t re =rl_read(rl_fd1, buffer, 10);
+        if(re==-1){
+            error("rl_write() failed");
+        }
         debug("buffer = '%s'", buffer);	// DEBUG
         // On ferme le descripteur de fichier
-        rl_close(rl_fd2);
+        rl_close(rl_fd1);
         debug("file descriptor closed");	// DEBUG
     } else if (pid < 0) {
         error("fork() failed");
     }
+    else {
 
+         char buffer[10] = "1234567890";
+        ssize_t wr= rl_write(rl_fd1, buffer, 10);
+        if(wr==-1){
+            error("rl_write() failed");
+        }
+        debug("buffer = '%s'", buffer);	// DEBUG
+    }
     info("unlinking shared memory object");
     char* smo_path = rl_path(rl_fd1.file_descriptor, NULL, 24);
     shm_unlink(smo_path);

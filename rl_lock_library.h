@@ -155,3 +155,13 @@ rl_descriptor rl_dup(rl_descriptor);
  * La fonction qui crée un processus fils en copiant les verrous
 */
 pid_t rl_fork();
+
+/**
+ * La fonction qui écrit dans un fichier
+*/
+ssize_t rl_write(rl_descriptor, const void*, size_t);
+
+/**
+ * La fonction qui lit dans un fichier
+*/
+ssize_t rl_read(rl_descriptor, void*, size_t);
