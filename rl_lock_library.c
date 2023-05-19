@@ -1,11 +1,9 @@
 /**
  * JEDDI SKANDER - 21957008
- * MAZELET FLORENT - XXXXXXXX
+ * MAZELET FLORENT - XXXXXXXX (TODO: A COMPLETER)
 */
 
 #include "rl_lock_library.h"
-
-int prout = 0;
 
 static struct {
     int files_count;
@@ -13,6 +11,7 @@ static struct {
 } rl_all_files;
 
 static char* rl_path(int fd, struct stat* fstats, size_t max_size) {
+    // Récupération du path du SMO
     BOOLEAN delete_fstats = FALSE;
     if (!fstats) { fstats = malloc(sizeof(struct stat)); delete_fstats = TRUE; }
     fstat(fd, fstats);
@@ -22,7 +21,7 @@ static char* rl_path(int fd, struct stat* fstats, size_t max_size) {
     char* prefix = malloc(sizeof(char) * (1 + strlen(env_prefix) + 1));
     strcpy(prefix, "/");
     strcat(prefix, env_prefix);
-    // Construction du path du SMO
+    // Construction du path du SMO 
     char* fd_dev = malloc(sizeof(char) * max_size); char* fd_ino = malloc(sizeof(char) * max_size);
     sprintf(fd_dev, "%ld", fstats->st_dev); sprintf(fd_ino, "%ld", fstats->st_ino);
     char* smo_path = malloc(sizeof(char) * (1 + strlen(prefix) + 1 + strlen(fd_dev) + 1 + strlen(fd_ino) + 1));
@@ -85,13 +84,13 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         }
         debug("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
         smo_was_on_disk = TRUE;
-    } else if (smo_fd == -1) {
+    } else if (smo_fd == -1) { // Le SMO n'existe pas et on n'a pas pu le créer
         error("couldn't create shared memory object\n");
         close(smo_fd);
         free(smo_path);
-        return rl_fd;
+        return rl_fd; // On retourne une structure vide avec un file_descriptor à -1 et un rl_file à NULL pour indiquer une erreur
     }
-    if (!smo_was_on_disk) {
+    if (!smo_was_on_disk) { // Le SMO n'existait pas, on le crée et on le tronque à la taille de la structure rl_open_file
         debug("shared memory object doesn't exist, creating & truncating to %ld\n", sizeof(rl_open_file));	// DEBUG
         ftruncate(smo_fd, sizeof(rl_open_file));
     }
@@ -117,26 +116,26 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
             rl_lock lock;
             // Valeurs par défaut
             lock.next_lock = -2;
-            // A vérifier/modifier
+            /** TODO: A vérifier/modifier */
             {
                 lock.starting_offset = -1;
                 lock.length = -1;
                 lock.type = -1;
                 lock.owners_count = 0;
-                // printf("starting_offset = %ld, length = %ld, type = %d, owners_count = %ld\n", lock.starting_offset, lock.length, lock.type, lock.owners_count);	// DEBUG
+                debug("starting_offset = %ld, length = %ld, type = %d, owners_count = %ld\n", lock.starting_offset, lock.length, lock.type, lock.owners_count);	// DEBUG
             }
             rl_mapped_file->lock_table[i] = lock;
         }
     }
-    // On met à jour la structure de retour - mais quel descripteur? celui du fichier ou celui du SMO?
-    rl_fd.file_descriptor = fd;
+    /** TODO: On met à jour la structure de retour - mais quel descripteur? celui du fichier ou celui du SMO? */
+    rl_fd.file_descriptor = fd; // ou smo_fd?
     rl_fd.rl_file = rl_mapped_file;
     info("shared memory object mapped in memory\n");	// DEBUG
     // On met à jour la structure qui contient tous les rl_open_file(s) - on vérifie avant si le fichier n'est pas déjà ouvert
     info("checking if file is already opened\n");
     for (size_t i = 0; i < rl_all_files.files_count; i++) {
-        // Est ce qu'on doit vérifier l'adresse de la structure ou juste le pointeur vers la structure? Ou même vérifier ça tout court?
-        // debug("(void*) &rl_all_files.open_files[i] = %p vs %p = (void*) rl_mapped_file\n", (void*) &rl_all_files.open_files[i], (void*) rl_mapped_file);	// DEBUG
+        /** TODO: Est ce qu'on doit vérifier l'adresse de la structure ou juste le pointeur vers la structure? Ou même vérifier ça tout court? */
+        debug("&rl_all_files.open_files[i] = %p vs %p = rl_mapped_file\n", &rl_all_files.open_files[i], &rl_mapped_file);	// DEBUG
         if (&rl_all_files.open_files[i] == &rl_mapped_file) {
             info("yes, returning\n");
             free(smo_path);
@@ -144,8 +143,8 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         }
     }// Si on arrive ici, c'est que le fichier n'est pas déjà ouvert
     info("no, appending to opened files\n");
-    rl_all_files.files_count += 1;
     rl_all_files.open_files[rl_all_files.files_count] = rl_mapped_file;
+    rl_all_files.files_count += 1;
     // Libération de la mémoire
     free(smo_path);
     return rl_fd;
@@ -166,7 +165,7 @@ int rl_close(rl_descriptor rl_fd) {
                 debug("found lock owner at index %ld\n", j);	// DEBUG
                 lock_index = j;
                 /**
-                 * On le supprime (en décalant tous les autres lock owners) - pas sûr que ça marche
+                 * On le supprime (en décalant tous les autres lock owners) - pas sûr que ça marche - àà priori oui
                 */
                 rl_fd.rl_file->lock_table[i].lock_owners[j] = rl_fd.rl_file->lock_table[i].lock_owners[owners_count - 1];
                 rl_fd.rl_file->lock_table[i].owners_count -= 1;
@@ -187,14 +186,14 @@ int rl_close(rl_descriptor rl_fd) {
 int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
     rl_lock_owner lock_owner = { .thread_id = getpid(), .file_descriptor = descriptor.file_descriptor };
     switch (command) {
-        case F_SETLK:
+        case F_SETLK: 
             // On recupère le type d'opération
             switch (lock->l_type) {
-                case F_RDLCK:
+                case F_RDLCK: /** TODO: implémenter */
                     break;
-                case F_WRLCK:
+                case F_WRLCK: /** TODO: implémenter */
                     break;
-                case F_UNLCK:
+                case F_UNLCK: /** TODO: vérifier que ça marche */
                     // On parcourt la liste des locks du fichier pour trouver le lock qui correspond à l'owner
                     for (size_t i = 0; i < NB_LOCKS; i++) {
                         const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
@@ -218,9 +217,9 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                     return 0;
             }
             break;
-        case F_SETLKW:
+        case F_SETLKW: /** TODO: implémenter */
             break;
-        case F_GETLK:
+        case F_GETLK: /** TODO: implémenter */
             break;
     }
     return 0;

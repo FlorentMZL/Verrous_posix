@@ -108,14 +108,14 @@ typedef struct {
 typedef struct {
     // Devrait être à -1 par défaut? (-1 = dernier élément)
     int first_lock;
-    // Tableau des verrous - OK(?)
+    // Tableau des verrous - OK (?)
     rl_lock lock_table[NB_LOCKS];
 } rl_open_file;
 
 typedef struct {
     // Le descripteur du fichier "physique"
     int file_descriptor;
-    rl_open_file *rl_file;
+    rl_open_file* rl_file;
 } rl_descriptor;
 
 /**
@@ -123,6 +123,9 @@ typedef struct {
 */
 rl_descriptor rl_open(const char*, int, mode_t);
 
+/**
+ * Equivalent de close()
+*/
 int rl_close(rl_descriptor);
 
 /**
@@ -144,4 +147,3 @@ rl_descriptor rl_dup(rl_descriptor);
  * La fonction qui crée un processus fils en copiant les verrous
 */
 pid_t rl_fork();
-
