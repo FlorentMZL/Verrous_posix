@@ -26,21 +26,21 @@ int memory_allocations = 0;
 
 #define debug(...)              \
     if (DEBUG) {                \
-        printf("\033[0;33m[DEBUG]\tin '%s':\n\t", __func__);    \
+        printf("\033[0;33m[DEBUG]\tin '%s' (line %d):\n\t", __func__, __LINE__);    \
         printf(__VA_ARGS__);    \
         printf("\033[0;37m");   \
     }
 
 #define info(...)               \
     {                           \
-        printf("\033[0;32m[INFO]\tin '%s':\n\t", __func__);     \
+        printf("\033[0;32m[INFO]\tin '%s' (line %d):\n\t", __func__, __LINE__);     \
         printf(__VA_ARGS__);    \
         printf("\033[0;37m");   \
     }                           
 
 #define error(...)              \
     {                           \
-        printf("\033[0;31m[ERROR]\tin '%s':\n\t", __func__);    \
+        printf("\033[0;31m[ERROR]\tin '%s' (line %d):\n\t", __func__, __LINE__);    \
         printf(__VA_ARGS__);    \
         printf("\t(errno = %d)\n", errno);                       \
         printf("\033[0;37m");   \
