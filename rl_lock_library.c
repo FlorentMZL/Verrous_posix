@@ -209,172 +209,144 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                     // F_RDLCK: on vérifie si le fichier est déjà locké en écriture
                     
                     rl_lock current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
-                    while(1){//très moche mais je sais pas si on peut faire autrement (il est 23;55 je suis fatigué)
-                        if (current_lock.starting_offset != -1 && current_lock.type == F_WRLCK) {
-                            // On vérifie si le lock est compatible avec le lock en écriture
-                            if (current_lock.starting_offset == lock->l_start && current_lock.length == lock->l_len) {//Si l'intervalle qu'on veut lock est egal a l'intervalle deja lock
-                                // On vérifie si le lock est déjà pris par le thread courant
-                                for (size_t j = 0; j < current_lock.owners_count; j++) {
-                                    rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
-                                    if (current_lock_owner.thread_id == lock_owner.thread_id && current_lock_owner.file_descriptor == lock_owner.file_descriptor) {
-                                        // Il existe déjà un lock d'écriture qui appartient au thread courant, on doit atomiquement le remplacer par un lock de lecture
-                                        debug("demoting owner's write lock to read lock\n");	// DEBUG
-                                        current_lock.type = F_RDLCK; // TODO: changer
-                                        return 0;
+                    int newStart =lock->l_start;
+                    int newEnd = lock->l_len+lock->l_start;
+                    int hasnext=  1;
+                    while(hasnext){//très moche mais je sais pas si on peut faire autrement (il est 23;55 je suis fatigué)
+                        if (current_lock.starting_offset+current_lock.length<lock->l_start){
+                                if(current_lock.next_lock!=-1){
+                                current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                                }
+                                else{
+                                    for(int i = 0; i<NB_LOCKS; i++){
+                                        if(descriptor.rl_file->lock_table[i].next_lock==-2){
+                                            descriptor.rl_file->lock_table[i].starting_offset = lock->l_start;
+                                            descriptor.rl_file->lock_table[i].length = lock->l_len;
+                                            descriptor.rl_file->lock_table[i].type = lock->l_type;
+                                            descriptor.rl_file->lock_table[i].next_lock = -1;
+                                            descriptor.rl_file->lock_table[i].owners_count = 1;
+                                            descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
+                                            current_lock.next_lock = i;
+                                            info("rdlock added\n");
+                                            return 0;
+                                        }
                                     }
                                 }
-
-                                // Le lock appartient à un autre thread, on ne peut pas lire
-                             
-                                info("read lock refused. WRLOCK existing\n");	// DEBUG
-                                return -1;
                             }
-                            else if (intersect_locks(lock->l_start, lock->l_len, current_lock.starting_offset, current_lock.length)){
-                                //Si les intervalles s'intersectent 
-                                //Si le lock est déjà pris par le thread courant : 
-                                for (size_t j = 0; j < current_lock.owners_count; j++) {
-                                    rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
-                                    if (current_lock_owner.thread_id == lock_owner.thread_id && current_lock_owner.file_descriptor == lock_owner.file_descriptor) {
-                                        //TODO : regarder si on peut bien lock l'intervalle qui n'est pas dans l'intersection
-                                        return 0;
-                                    }
-
-                                }
-                                //Si le lock n'est appartient à un autre thread : 
-                                errno = EACCES;
-                                info("read lock refused. WRLOCK existing\n");	// DEBUG
-                                return -1;
-                            }
+                        else if (current_lock.starting_offset>=lock->l_start+lock->l_len){//Tous les verrous suivants seront en dehors de l'intervalle car la liste est triée. 
+                            break; 
                         }
-                        if (current_lock.next_lock == -1){
-                            break;
-                        }
-                        current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
-                        
-                    } 
-                    // Si on arrive ici, c'est que l'intervalle n'est pas locké en écriture
-                    // On vérifie si le fichier est déjà locké en lecture
-                    current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
-                    while(1) {
-                        // On vérifie si le lock est compatible avec le lock en lecture
-                        if (current_lock.starting_offset != -1 && current_lock.type == F_RDLCK) {
-                            // On vérifie si il est compris dans un intervalle déjà locké en lecture
-                            if (current_lock.starting_offset == lock->l_start && current_lock.length == lock->l_len) {
-                                // On vérifie si le lock est déjà pris par le thread courant
-                                for (size_t j = 0; j < current_lock.owners_count; j++) {
-                                    rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
-                                    if (current_lock_owner.thread_id == lock_owner.thread_id && current_lock_owner.file_descriptor == lock_owner.file_descriptor) {
-                                        // Le lock est déjà pris par le thread courant
-                                        debug("read lock already taken by owner\n");	// DEBUG
-                                        return 0;
-                                    }
-                                }
-                                // Le lock n'est pas déjà pris par le thread courant
-                                // On ajoute le lock owner à la liste des lock owners
-                                current_lock.lock_owners[current_lock.owners_count] = lock_owner;
-                                current_lock.owners_count += 1;
-                                info("read lock granted\n");	// DEBUG
-                                return 0;
-                            }
-                        
-                            else if (intersect_locks(lock->l_start, lock->l_len, current_lock.starting_offset, current_lock.length)){
-                                for (size_t j = 0; j < current_lock.owners_count; j++) {
-                                    rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
-                                    if (current_lock_owner.thread_id == lock_owner.thread_id && current_lock_owner.file_descriptor == lock_owner.file_descriptor) {
-                                        // Le lock est déjà pris par le thread courant
-                                        
-                                        if(current_lock.starting_offset <=lock->l_start&&current_lock.length+current_lock.starting_offset >= lock->l_start+lock->l_len){
-                                            info("lock already exists"); 
-                                            return 0; 
+                        else{
+                            if (current_lock.type == F_WRLCK){
+                                int courant = 0; 
+                                for(size_t j = 0; j<current_lock.owners_count; j++){
+                                    if (current_lock.lock_owners[j].thread_id == getpid() && current_lock.lock_owners[j].file_descriptor == descriptor.file_descriptor) {
+                                        //si le lock appartient au thread courant: 
+                                         courant = 1; 
+                                        if (current_lock.starting_offset <=lock->l_start){
+                                            newStart=current_lock.starting_offset;
+                                            
+                                          
                                         }
-                                        //todo : si le j-eme est aussi le dernier ça marche pas!!
-                                        current_lock.lock_owners[j]=current_lock.lock_owners[current_lock.owners_count-1];
-                                        
-                                        current_lock.owners_count -= 1;
-                                        //Assignation d'un plus grand intervalle locké i.e l'union des deux intervalles qu'on a. Ne marche que si on a 2 intervalles lockés, si y'en a plus c'est plus compliqué..(todo)
-                                       
-                                        int start; 
-                                        if (lock->l_start < current_lock.starting_offset) {
-                                            start = lock->l_start;
+                                        if (current_lock.starting_offset+current_lock.length>=newEnd){
+                                            newEnd=current_lock.starting_offset+current_lock.length;
+                                          
                                         }
-                                        else {
-                                            start = current_lock.starting_offset;
-                                        }
-                                        
-                                        int newlength ;
-                                        int endcurr = current_lock.starting_offset + current_lock.length;
-                                        int endlock = lock->l_start + lock->l_len;
-                                        if (endcurr > endlock) {
-                                            newlength = endcurr - start;
-                                        }
-                                        else {
-                                            newlength = endlock - start;
-                                        }
-                                        while(current_lock.next_lock!=-2){
+                                        if(current_lock.next_lock!=-1){
                                             current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
                                         }
-                                        // On ajoute le lock à la table des locks
-                                        for(size_t n = 0; n<NB_LOCKS; n++){
-                                            rl_lock temp = descriptor.rl_file->lock_table[n];
-                                            if (temp.next_lock==-2) {
-                                                temp.length = newlength;
-                                                temp.starting_offset = start;
-                                                temp.type = F_RDLCK;
-                                                temp.next_lock = -1;
-                                                descriptor.rl_file->lock_table[n] = temp;
-                                                current_lock.next_lock = n;
-                                                temp.lock_owners[0] = lock_owner;
-                                                temp.owners_count = 1;
-
-                                                break; 
-                                                
-                                            }
+                                        if(current_lock.next_lock==-1){
+                                            hasnext = 0; 
                                         }
-                                        return 0;
+                                        break; 
+                                    }
+                                }
+                                if(courant == 0){
+                                    info("lock already taken\n");
+                                    return -1; 
+                                }
+                            }
+                            else if (current_lock.type == F_RDLCK){
+                                for(size_t j = 0; j<current_lock.owners_count; j++){
+                                    if (current_lock.lock_owners[j].thread_id == getpid() && current_lock.lock_owners[j].file_descriptor == descriptor.file_descriptor) {
+                                        //si le lock appartient au thread courant: 
+                                        if (current_lock.starting_offset <=lock->l_start){
+                                            newStart=current_lock.starting_offset;       
+                                        }
+                                        if (current_lock.starting_offset+current_lock.length>=newEnd){
+                                            newEnd=current_lock.starting_offset+current_lock.length;    
+                                        }
+                                        if(current_lock.next_lock!=-1){
+                                            current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                                            break; 
+                                        }
+                                        if (current_lock.next_lock==-1){
+                                            hasnext = 0; 
+                                        }
+                                        
+                                    }
+                                }
+                                if(current_lock.next_lock!=-1){
+                                    current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                                    break; 
+                                }
+                                if (current_lock.next_lock==-1){
+                                    hasnext = 0; 
+                                }
+                            }
+                        }
+                        
+                       
+                        
+                    }
+                    //Si on arrive ici, c'est qu'on a le droit de poser le verrou. Il faut cependant fusionner les verrous du même thread qui pourraient se trouver sur l'intervalle 
+                    //On regarde déjà si il y a deja un verrou en lecture sur l'intervalle qu'on veut 
+                    int found = 0; 
+                    int newLen = newEnd-newStart;
+                    //On enleve les verrous qui vont etre fusionnés 
+                    current_lock=descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+                    hasnext=1; 
+                    while(hasnext){
+                        if(current_lock.starting_offset+current_lock.length<lock->l_start){
+                            if(current_lock.next_lock!=-1){
+                                current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                            }
+                            else{
+                                hasnext = 0; 
+                            }
+                        }
+                        else if (current_lock.starting_offset>=lock->l_start+lock->l_len){
+                            break;
+                        }
+                        else{
+                            for(int j=0; j<current_lock.owners_count; j++){
+                                if (current_lock.lock_owners[j].thread_id == getpid() && current_lock.lock_owners[j].file_descriptor == descriptor.file_descriptor) {
+                                    //On enleve le lock du thread courant
+                                    current_lock.lock_owners[j].thread_id = -1, 
+                                    current_lock.lock_owners[j].file_descriptor = -1; 
+                                    for(int k = j; k<current_lock.owners_count-1; k++){
+                                        current_lock.lock_owners[k] = current_lock.lock_owners[k+1];
+                                    }
+                                    current_lock.owners_count--;
+                                    if (current_lock.next_lock!=-1){
+                                        current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                                        break; 
+                                    }
+                                    else{
+                                        hasnext = 0; 
+                                        break; 
                                     }
                                 }
                             }
                         }
-                        if (current_lock.next_lock == -1){
-                            break;
-                        }
-                        current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
                     }
-                            
-                    //Il n'y a aucun intervalle avec un verrou de lecture ou d'ecriture qui correspond à l'interval qu'on veut lock
-                            //On ajoute un nouveau lock
-                    while(current_lock.next_lock!=-1){
-                        current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                    //todo : Ajouter le nouveau verrou. 
+                    //todo : mieux découper: si on a un verrou en ecriture qui intersecte l'intervalle il faut le découper pour que dans l'intervalle il y ait 1 partie du verrou en lecture, et en dehors l'ecriture
                     }
-                    for(size_t n = 0; n<NB_LOCKS; n++){
-                        rl_lock temp = descriptor.rl_file->lock_table[n];
-                        if (temp.next_lock==-2) {
-                            // On ajoute le lock
-                            temp.starting_offset = lock->l_start;
-                            temp.length = lock->l_len;
-                            temp.type = F_RDLCK;
-                            temp.next_lock = -1;
-                            // On ajoute le lock owner à la liste des lock owners
-                            temp.lock_owners[0] = lock_owner;
-                            temp.owners_count = 1;
-                            descriptor.rl_file->lock_table[n] = temp;
-                            info("read lock granted\n");	// DEBUG
-                            current_lock.next_lock = n;
-                            return 0;
-                        }
-                    }
-                            
-                        
-
-                    
-                    
-                    
-                    // Si on arrive ici, c'est qu'il n'y a pas de lock libre
-                    errno = ENOLCK;
-                    error("no free locks\n");	// DEBUG
-                    return -1;
+                    //todo : verrous en ecriture 
+                    //ce qu'il y a en dessous c les restes de l'ancienne fonction (= inutile mais je garde pour faire d copié collé)
                 case F_WRLCK:
-                    current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+                    rl_lock current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
 
                     info("requesting a write lock\n");	// DEBUG
                     print_flock(lock);	// DEBUG
