@@ -81,6 +81,18 @@ int memory_allocations = 0;
         printf("\033[0;37m");                                                       \
     })
 
+// Une macro pour afficher la fonction actuelle et le numéro de ligne (pour le debug)
+#define trace()                                                         \
+    {                                                                        \
+        printf("\033[0;33m[#%d] %03d @ '%s'\n\033[0;37m", getpid(), __LINE__, __func__); \
+    }
+
+// Une macro pour afficher les propriétés d'un lock
+#define print_lock(lock)                                               \
+    {                                                                        \
+        debug("lock:\n\t\t\t\toffset = %ld\n\t\t\t\tlength = %ld\n\t\t\t\ttype = %d", current_lock.starting_offset, current_lock.length, current_lock.type); \
+    }
+
 /**
  * !!!
  *    SUSCEPTIBLE (AVEC GRANDE PROBABILITE) DE CHANGER
