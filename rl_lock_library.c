@@ -200,8 +200,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                                 // On vérifie si le lock est déjà pris par le thread courant
                                 for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
                                     if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
-                                        // Le lock est déjà pris par le thread courant
-                                        debug("lock already taken by current thread");
+                                        // Il existe déjà un lock d'écriture qui appartient au thread courant, on doit atomiquement le remplacer par un lock de lecture
+                                        descriptor.rl_file->lock_table[i].type = F_RDLCK;
                                         return 0;
                                     }
                                 }
@@ -286,8 +286,15 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                                 // On vérifie si le lock est déjà pris par le thread courant
                                 for (size_t j = 0; j < descriptor.rl_file->lock_table[i].owners_count; j++) {
                                     if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
-                                        // Le lock est déjà pris par le thread courant
-                                        return 0;
+                                        if (descriptor.rl_file->lock_table[i].owners_count == 1) {
+                                            // Le lock n'est pris que par le thread courant, on le promeut en écriture
+                                            descriptor.rl_file->lock_table[i].type = F_WRLCK;
+                                            return 0;
+                                        } else {
+                                            // Il y a d'autres lock owners, on ne peut pas promouvoir le lock
+                                            errno = EAGAIN;
+                                            return -1;
+                                        }
                                     }
                                 }
                                 // Le lock n'est pas déjà pris par le thread courant
@@ -322,6 +329,42 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock* lock) {
                         const size_t owners_count = descriptor.rl_file->lock_table[i].owners_count;
                         for (size_t j = 0; j < owners_count; j++) {
                             if (descriptor.rl_file->lock_table[i].lock_owners[j].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[i].lock_owners[j].file_descriptor == lock_owner.file_descriptor) {
+                                debug("found lock owner");
+                                // On vérifie si la région du lock est à l'intérieur de la région d'un plus grand lock appartenant au même thread
+                                for (size_t k = 0; k < NB_LOCKS; k++) {
+                                    if (descriptor.rl_file->lock_table[k].starting_offset != -1 && descriptor.rl_file->lock_table[k].type == F_WRLCK && descriptor.rl_file->lock_table[k].lock_owners[0].thread_id == lock_owner.thread_id && descriptor.rl_file->lock_table[k].lock_owners[0].file_descriptor == lock_owner.file_descriptor) {
+                                        if (descriptor.rl_file->lock_table[k].starting_offset <= descriptor.rl_file->lock_table[i].starting_offset && descriptor.rl_file->lock_table[k].starting_offset + descriptor.rl_file->lock_table[k].length >= descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length) {
+                                            // Le lock est à l'intérieur d'un plus grand lock, on ne le sépare en 2 locks (un avant et un après)
+                                            debug("lock is inside a bigger lock, splitting it");
+                                            // On crée le lock à gauche, avant le lock courant
+                                            struct flock left_region = {
+                                                    .l_type = F_WRLCK,
+                                                    .l_whence = SEEK_SET,
+                                                    .l_start = descriptor.rl_file->lock_table[k].starting_offset,
+                                                    .l_len = descriptor.rl_file->lock_table[i].starting_offset - descriptor.rl_file->lock_table[k].starting_offset,
+                                                    .l_pid = lock->l_pid
+                                            };
+                                            // On crée le lock à droite, après le lock courant
+                                            struct flock right_region = {
+                                                    .l_type = F_WRLCK,
+                                                    .l_whence = SEEK_SET,
+                                                    .l_start = descriptor.rl_file->lock_table[i].starting_offset + descriptor.rl_file->lock_table[i].length,
+                                                    .l_len = descriptor.rl_file->lock_table[k].starting_offset + descriptor.rl_file->lock_table[k].length - descriptor.rl_file->lock_table[i].starting_offset - descriptor.rl_file->lock_table[i].length,
+                                                    .l_pid = lock->l_pid
+                                            };
+                                            // On ajoute le lock à gauche
+                                            if (fcntl(lock_owner.file_descriptor, F_SETLK, &left_region) == -1) {
+                                                error("could not add left lock");
+                                                return -1;
+                                            }
+                                            // On ajoute le lock à droite
+                                            if (fcntl(lock_owner.file_descriptor, F_SETLK, &right_region) == -1) {
+                                                error("could not add right lock");
+                                                return -1;
+                                            }
+                                        }
+                                    }
+                                }
                                 info("removing lock owner");
                                 // On le supprime (en décalant tous les autres lock owners) - pas sûr que ça marche
                                 descriptor.rl_file->lock_table[i].lock_owners[j] = descriptor.rl_file->lock_table[i].lock_owners[owners_count - 1];
