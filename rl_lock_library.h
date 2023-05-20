@@ -29,28 +29,28 @@ int memory_allocations = 0;
     if (DEBUG) {                                                                    \
         printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
-        printf("\n\033[0;37m");                                                     \
+        printf("\033[0;37m");                                                     \
     }                                                                               
 
 #define debug_memory(...)                                                           \
     if (DEBUG_MEMORY) {                                                             \
         printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
-        printf("\n\033[0;37m");                                                     \
+        printf("\033[0;37m");                                                     \
     }
 
 #define info(...)                                                                   \
     {                                                                               \
         printf("\033[0;32m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);   \
         printf(__VA_ARGS__);                                                        \
-        printf("\n\033[0;37m");                                                     \
+        printf("\033[0;37m");                                                     \
     }                          
 
 #define error(...)                                                                  \
     {                                                                               \
         printf("\033[0;31m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__);      \
         printf(__VA_ARGS__);                                                        \
-        printf(": %s (%d)\n\033[0;37m", strerror(errno), errno);                    \
+        printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                    \
     }
 
 #define malloc(...)                                                                 \
@@ -90,7 +90,13 @@ int memory_allocations = 0;
 // Une macro pour afficher les propriétés d'un lock
 #define print_lock(lock)                                               \
     {                                                                        \
-        debug("lock:\n\t\t\t\toffset = %ld\n\t\t\t\tlength = %ld\n\t\t\t\ttype = %d", current_lock.starting_offset, current_lock.length, current_lock.type); \
+        debug("lock = [ offset = %ld, length = %ld, type = %d ]\n", lock.starting_offset, lock.length, lock.type); \
+    }
+
+// Une macro pour afficher les propriétés d'un flock*
+#define print_flock(flock)                                             \
+    {                                                                        \
+        debug("lock = [ offset = %ld, length = %ld, type = %d ]\n", flock->l_start, flock->l_len, flock->l_type); \
     }
 
 /**
