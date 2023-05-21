@@ -1,9 +1,9 @@
 #include "rl_lock_library.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     rl_init_library();
 
-    char *file_name;
+    char* file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
     info("file_name from args = '%s'\n", file_name); // DEBUG
 
@@ -14,7 +14,6 @@ int main(int argc, char **argv) {
     rl_descriptor rl_fd2 = rl_dup(rl_fd1); 
 
     /*
-
         // On duplique le descripteur de fichier
         rl_descriptor rl_fd2 = rl_dup(rl_fd1);
         debug("file descriptor = %d\n", rl_fd2.file_descriptor);	// DEBUG
@@ -56,6 +55,7 @@ int main(int argc, char **argv) {
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
         int return_value = rl_fcntl(rl_fd2, F_SETLK, &lock);
         if (return_value == -1) error("could not set lock\n");
+
         char buffer[6];
         ssize_t re = rl_read(rl_fd2, buffer, 5);
         buffer[5] = '\0';
