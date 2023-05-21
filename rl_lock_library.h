@@ -43,12 +43,19 @@ int memory_allocations = 0;
 
 #define info(...)                                                              \
     {                                                                          \
+        printf("\033[0;34m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
+        printf(__VA_ARGS__);                                                   \
+        printf("\033[0;37m");                                                  \
+    }
+
+#define ok(...)                                                                \
+    {                                                                          \
         printf("\033[0;32m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
         printf(__VA_ARGS__);                                                   \
         printf("\033[0;37m");                                                  \
     }
 
-#define error(...)                                                             \
+#define error(...)                                                        \
     {                                                                          \
         printf("\033[0;31m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
         printf(__VA_ARGS__);                                                   \
@@ -195,93 +202,3 @@ ssize_t rl_write(rl_descriptor, const void *, size_t);
  * La fonction qui lit dans un fichier
  */
 ssize_t rl_read(rl_descriptor, void *, size_t);
-
-/**
- * La fonction qui indique si deux intervalles s'intersectent
- */
-
-int intersect_locks(int xl1, int yl1, int xl2, int yl2) {
-    
-    if (xl1 < xl2) {
-        if (yl1 > xl2){
-            return 1; 
-        } 
-        return 0; 
-    } else {
-        if (xl1<yl2){
-            return 1; 
-        }
-        return 0; 
-
-    }   
-}
-/**
- * la fonction qui regarde si un intervalle est libre pour un verrou en ecriture
-*/
-
-
-/**
- * la fonction qui verifie si un verrou a encore un owner ou pas.
-*/
-
-int check_empty_lock(rl_lock *lock){//retourne l'indice du prochain lock si jamais il y a suppresison du lock courant. 
-    int nxt = lock->next_lock;
-    if (lock->owners_count == 0){
-        //on reset le lock
-        lock->starting_offset = -1;
-        lock->length = -1;
-        lock->type = -1;
-        lock->next_lock = -2;
-        
-        return nxt;
-    }
-    else {
-        return -3; 
-    }
-    
-}
-/**
- * la fonction pour ajouter un verrou
-*/
-int addLock(rl_lock *lock, int idLinkback, int idLinkfront,  off_t starting_offset, off_t length, short type, pid_t thread_id, rl_descriptor *file_descriptor, rl_lock_owner owner){
-    int i = 0;
-    for(i  = 0; i<NB_LOCKS; i++){
-        if (lock->next_lock == -2){
-            lock->lock_owners[0]=owner;
-            lock->starting_offset = starting_offset;
-            lock->length = length;
-            lock->type = type;
-            lock->owners_count++;
-            lock->next_lock = idLinkfront;
-            if(idLinkback!=-2){
-            file_descriptor->rl_file->lock_table[idLinkback].next_lock = i;
-            }
-            else{
-                file_descriptor->rl_file->first_lock = i;
-            }
-            info("rdlock added");
-            return 0; 
-        }
-    }
-    errno=EAGAIN;
-    info("lock table is full");
-    pthread_mutex_unlock(&(file_descriptor->mutex));
-    return -1;
-
-    
-}
-
-/**
- * La fonction qui initialise un mutex
-*/
-int initialiser_mutex(pthread_mutex_t *pmutex){
-   pthread_mutexattr_t mutexattr;
-   int code;
-  if( ( code = pthread_mutexattr_init(&mutexattr) ) != 0) return code;
-
-      
- if( ( code = pthread_mutexattr_setpshared(&mutexattr,  PTHREAD_PROCESS_SHARED) ) != 0)return code;
-    
-    code = pthread_mutex_init(pmutex, &mutexattr) ;
-    return code;
- }
