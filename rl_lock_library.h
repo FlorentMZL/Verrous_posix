@@ -151,8 +151,8 @@ typedef struct
 
 typedef struct
 {
+    int smo_fd;
     // Devrait être à -1 par défaut? (-1 = dernier élément) : NON, -2 si il n'y a pas de verrou. 
-    
     int first_lock;
     // Tableau des verrous - OK (?)
     rl_lock lock_table[NB_LOCKS];
@@ -167,14 +167,9 @@ typedef struct
 } rl_descriptor;
 
 /**
- * La fonction qui unlink un SMO
-*/
-int rl_unlink(rl_descriptor);
-
-/**
  * Ici, si j'ai bien compris, le but est bien d'ouvrir, sans ajouter de verrous ou quoi que ce soit.
  */
-rl_descriptor rl_open(const char *, int, mode_t);
+rl_descriptor rl_open(const char*, int, mode_t);
 
 /**
  * Equivalent de close()
@@ -184,7 +179,7 @@ int rl_close(rl_descriptor);
 /**
  * La fonction qui gère les verrous
  */
-int rl_fcntl(rl_descriptor, int, struct flock *);
+int rl_fcntl(rl_descriptor, int, struct flock*);
 
 /**
  * La fonction qui duplique un descripteur - (2)
@@ -204,12 +199,12 @@ pid_t rl_fork();
 /**
  * La fonction qui écrit dans un fichier
  */
-ssize_t rl_write(rl_descriptor, const void *, size_t);
+ssize_t rl_write(rl_descriptor, const void*, size_t);
 
 /**
  * La fonction qui lit dans un fichier
  */
-ssize_t rl_read(rl_descriptor, void *, size_t);
+ssize_t rl_read(rl_descriptor, void*, size_t);
 
 /**
  * La fonction qui initialise la librairie

@@ -187,6 +187,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     if (!smo_was_on_disk) { // Si le SMO n'existe pas, remplir les valeurs par défaut de rl_open_file (énoncé)
         debug("shared memory object didn't exist, filling with default values\n");	// DEBUG
         if (rl_mapped_file) debug("mapped file is ok\n");    // DEBUG
+        rl_mapped_file->smo_fd = smo_fd;
         rl_mapped_file->first_lock = -2; // (pas sûr)
         debug("first lock index set to %d\n", rl_mapped_file->first_lock);	// DEBUG
         for (size_t i = 0; i < NB_LOCKS; i++) {
@@ -233,8 +234,9 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
 
 int rl_close(rl_descriptor rl_fd) {
     rl_descriptor descriptor = rl_fd;
+    char* smo_path = rl_path(rl_fd.file_descriptor, NULL, DEV_INO_MAX_SIZE);
     int ret = close(rl_fd.file_descriptor);
-    info("file descriptor closed\n");
+    if (ret != 0) { return ret; }
     // On récupère le lock owner courant
     info("removing lock owner & possibly lock\n");
     if (descriptor.rl_file->first_lock == -2) return ret;
@@ -295,6 +297,7 @@ int rl_close(rl_descriptor rl_fd) {
             }
         }
     }
+    if (shm_unlink(smo_path) != 0) { error("could not unlink shared memory object\n"); }
     return ret;
 }
 
@@ -885,13 +888,4 @@ int rl_init_library() {
     // On initialise la liste des fichiers ouverts
     rl_all_files.files_count = 0;
     return 0;
-}
-
-int rl_unlink(rl_descriptor rl_fd) {
-    char* smo_path = rl_path(rl_fd.file_descriptor, NULL, 24);
-    info("unlinking %s\n", smo_path);
-    shm_unlink(smo_path);
-    int ret = unlink(smo_path);
-    free(smo_path);
-    return ret;
 }
