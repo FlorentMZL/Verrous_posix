@@ -24,46 +24,47 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define DEBUG 0
-#define DEBUG_MEMORY 0
+#define LOG_LEVEL 5
 
 extern int memory_allocations;
 
-#define debug(...)                                                             \
-    if (DEBUG)                                                                 \
-    {                                                                          \
-        printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
-        printf(__VA_ARGS__);                                                   \
-        printf("\033[0;37m");                                                  \
+#define debug(...)                                                                              \
+    if (LOG_LEVEL >= 3)                                                                         \
+    {                                                                                           \
+        printf("\033[0;33m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__);     \
+        printf(__VA_ARGS__);                                                                    \
+        printf("\033[0;37m");                                                                   \
     }
 
-#define debug_memory(...)                                                      \
-    if (DEBUG_MEMORY)                                                          \
-    {                                                                          \
-        printf("\033[0;33m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
-        printf(__VA_ARGS__);                                                   \
-        printf("\033[0;37m");                                                  \
+#define debug_memory(...)                                                                       \
+    if (LOG_LEVEL >= 4)                                                                         \
+    {                                                                                           \
+        printf("\033[0;33m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__);     \
+        printf(__VA_ARGS__);                                                                    \
+        printf("\033[0;37m");                                                                   \
     }
 
-#define info(...)                                                              \
-    {                                                                          \
-        printf("\033[0;34m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
-        printf(__VA_ARGS__);                                                   \
-        printf("\033[0;37m");                                                  \
+#define info(...)                                                                               \
+    if (LOG_LEVEL >= 1)                                                                         \
+    {                                                                                           \
+        printf("\033[0;34m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__);     \
+        printf(__VA_ARGS__);                                                                    \
+        printf("\033[0;37m");                                                                   \
     }
 
-#define ok(...)                                                                \
-    {                                                                          \
-        printf("\033[0;32m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
-        printf(__VA_ARGS__);                                                   \
-        printf("\033[0;37m");                                                  \
+#define ok(...)                                                                                 \
+    if (LOG_LEVEL >= 1)                                                                         \
+    {                                                                                           \
+        printf("\033[0;32m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__);     \
+        printf(__VA_ARGS__);                                                                    \
+        printf("\033[0;37m");                                                                   \
     }
 
-#define error(...)                                                        \
-    {                                                                          \
-        printf("\033[0;31m[#%d] %03d @ '%s': ", getpid(), __LINE__, __func__); \
-        printf(__VA_ARGS__);                                                   \
-        printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);               \
+#define error(...)                                                                              \
+    {                                                                                           \
+        printf("\033[0;31m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__);     \
+        printf(__VA_ARGS__);                                                                    \
+        printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                                \
     }
 
 #define malloc(...)                                                          \
@@ -84,7 +85,7 @@ extern int memory_allocations;
         debug_memory("[%02d free() = %p", memory_allocations, __VA_ARGS__); \
         free(__VA_ARGS__);                                                  \
         memory_allocations--;                                               \
-        if (DEBUG_MEMORY)                                                   \
+        if (LOG_LEVEL >= 4)                                                 \
         {                                                                   \
             if (memory_allocations == 0)                                    \
             {                                                               \
@@ -99,33 +100,34 @@ extern int memory_allocations;
     })
 
 // Une macro pour afficher la fonction actuelle et le numéro de ligne (pour le debug)
-#define trace(...)                                                                          \
-    {                                                                                    \
-        printf("\033[0;35m[#%d] %03d @ '%s': %s\033[0;37m", getpid(), __LINE__, __func__, __VA_ARGS__); \
+#define trace(...)                                                                                                  \
+    if (LOG_LEVEL >= 2)                                                                                             \
+    {                                                                                                               \
+        printf("\033[0;35m[#%d] %s @ %03d [%s]: %s", getpid(), __FILE__, __LINE__, __func__, __VA_ARGS__);          \
     }
 
 // Une macro pour afficher les propriétés d'un lock
-#define print_lock(lock)                                                                                           \
-    {                                                                                                              \
-        debug("lock = [ offset = %ld, length = %ld, type = %d ]\n", lock.starting_offset, lock.length, lock.type); \
+#define print_lock(lock)                                                                                            \
+    {                                                                                                               \
+        info("lock = [ offset = %ld, length = %ld, type = %d ]\n", lock.starting_offset, lock.length, lock.type);  \
     }
 
 // Une macro pour afficher les propriétés d'un flock*
-#define print_flock(flock)                                                                                        \
-    {                                                                                                             \
-        debug("lock = [ offset = %ld, length = %ld, type = %d ]\n", flock->l_start, flock->l_len, flock->l_type); \
+#define print_flock(flock)                                                                                          \
+    {                                                                                                               \
+        info("lock = [ offset = %ld, length = %ld, type = %d ]\n", flock->l_start, flock->l_len, flock->l_type);   \
     }
 
-#define pthread_mutex_lock(lock)    \
-    {                               \
-        trace("locking mutex\n");      \
-        pthread_mutex_lock(lock);   \
+#define pthread_mutex_lock(lock)        \
+    {                                   \
+        trace("locking mutex\n");       \
+        pthread_mutex_lock(lock);       \
     }
 
-#define pthread_mutex_unlock(lock)  \
-    {                               \
-        trace("unlocking mutex\n");    \
-        pthread_mutex_unlock(lock); \
+#define pthread_mutex_unlock(lock)      \
+    {                                   \
+        trace("unlocking mutex\n");     \
+        pthread_mutex_unlock(lock);     \
     }
 
 /**
