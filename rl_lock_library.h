@@ -10,6 +10,7 @@
 #include <sys/types.h> /* For types    */
 #include <sys/stat.h>  /* For mode constants   */
 #include <sys/mman.h>  /* For mmap()   */
+#include <sys/wait.h>  /* For wait()   */
 
 #include <unistd.h>    /* For mode constants   */
 #include <fcntl.h>     /* For O_* constants    */
@@ -98,9 +99,9 @@ extern int memory_allocations;
     })
 
 // Une macro pour afficher la fonction actuelle et le numéro de ligne (pour le debug)
-#define trace()                                                                          \
+#define trace(...)                                                                          \
     {                                                                                    \
-        printf("\033[0;33m[#%d] %03d @ '%s'\n\033[0;37m", getpid(), __LINE__, __func__); \
+        printf("\033[0;35m[#%d] %03d @ '%s': %s\033[0;37m", getpid(), __LINE__, __func__, __VA_ARGS__); \
     }
 
 // Une macro pour afficher les propriétés d'un lock
@@ -113,6 +114,18 @@ extern int memory_allocations;
 #define print_flock(flock)                                                                                        \
     {                                                                                                             \
         debug("lock = [ offset = %ld, length = %ld, type = %d ]\n", flock->l_start, flock->l_len, flock->l_type); \
+    }
+
+#define pthread_mutex_lock(lock)    \
+    {                               \
+        trace("locking mutex\n");      \
+        pthread_mutex_lock(lock);   \
+    }
+
+#define pthread_mutex_unlock(lock)  \
+    {                               \
+        trace("unlocking mutex\n");    \
+        pthread_mutex_unlock(lock); \
     }
 
 /**
@@ -151,6 +164,7 @@ typedef struct
 
 typedef struct
 {
+    pthread_mutex_t mutex;
     int smo_fd;
     // Devrait être à -1 par défaut? (-1 = dernier élément) : NON, -2 si il n'y a pas de verrou. 
     int first_lock;
@@ -161,9 +175,8 @@ typedef struct
 typedef struct
 {
     // Le descripteur du fichier "physique"
-    pthread_mutex_t mutex;
     int file_descriptor;
-    rl_open_file *rl_file;
+    rl_open_file* rl_file;
 } rl_descriptor;
 
 /**
