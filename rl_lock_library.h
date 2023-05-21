@@ -1,3 +1,6 @@
+#ifndef __RL_LOCK_LIBRARY_H__
+#define __RL_LOCK_LIBRARY_H__
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -23,7 +26,7 @@
 #define DEBUG 0
 #define DEBUG_MEMORY 0
 
-static int memory_allocations = 0;
+extern int memory_allocations;
 
 #define debug(...)                                                             \
     if (DEBUG)                                                                 \
@@ -164,6 +167,11 @@ typedef struct
 } rl_descriptor;
 
 /**
+ * La fonction qui unlink un SMO
+*/
+int rl_unlink(rl_descriptor);
+
+/**
  * Ici, si j'ai bien compris, le but est bien d'ouvrir, sans ajouter de verrous ou quoi que ce soit.
  */
 rl_descriptor rl_open(const char *, int, mode_t);
@@ -207,3 +215,5 @@ ssize_t rl_read(rl_descriptor, void *, size_t);
  * La fonction qui initialise la librairie
 */
 int rl_init_library();
+
+#endif

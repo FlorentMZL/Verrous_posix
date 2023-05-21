@@ -5,6 +5,8 @@
 //TODO trier la liste des rl_lock par ordre croissant de starting_offset
 #include "rl_lock_library.h"
 
+int memory_allocations = 0;
+
 /**
  * La fonction qui indique si deux intervalles s'intersectent
  */
@@ -158,7 +160,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
             free(smo_path);
             return rl_fd;
         }
-        debug("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
+        ok("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
         smo_was_on_disk = TRUE;
     } else if (smo_fd == -1) { // Le SMO n'existe pas et on n'a pas pu le créer
         error("couldn't create shared memory object\n");
@@ -883,4 +885,13 @@ int rl_init_library() {
     // On initialise la liste des fichiers ouverts
     rl_all_files.files_count = 0;
     return 0;
+}
+
+int rl_unlink(rl_descriptor rl_fd) {
+    char* smo_path = rl_path(rl_fd.file_descriptor, NULL, 24);
+    info("unlinking %s\n", smo_path);
+    shm_unlink(smo_path);
+    int ret = unlink(smo_path);
+    free(smo_path);
+    return ret;
 }
