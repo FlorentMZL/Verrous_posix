@@ -86,7 +86,7 @@ static struct {
     rl_open_file* open_files[NB_FILES];
 } rl_all_files;
 
-static char* rl_path(int fd, struct stat* fstats, size_t max_size) {
+static int rl_path(char* smo_path, int fd, struct stat* fstats, size_t max_size) {
     // Récupération du path du SMO
     BOOLEAN delete_fstats = FALSE;
     if (!fstats) { fstats = malloc(sizeof(struct stat)); delete_fstats = TRUE; }
@@ -100,12 +100,11 @@ static char* rl_path(int fd, struct stat* fstats, size_t max_size) {
     // Construction du path du SMO 
     char* fd_dev = malloc(sizeof(char) * max_size); char* fd_ino = malloc(sizeof(char) * max_size);
     sprintf(fd_dev, "%ld", fstats->st_dev); sprintf(fd_ino, "%ld", fstats->st_ino);
-    char* smo_path = malloc(sizeof(char) * (1 + strlen(prefix) + 1 + strlen(fd_dev) + 1 + strlen(fd_ino) + 1));
     strcpy(smo_path, prefix); strcat(smo_path, "_"); strcat(smo_path, fd_dev); strcat(smo_path, "_"); strcat(smo_path, fd_ino);
     // Libération de la mémoire
     free(fd_dev); free(fd_ino); free(prefix); free(env_prefix);
     if (delete_fstats) free(fstats);
-    return smo_path;
+    return strlen(smo_path);
 }
 
 /**
@@ -142,9 +141,12 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     // Récupération des informations du fichier
     struct stat fstats;
     debug("getting file stats\n");
+    fstat(fd, &fstats);
     debug("constructing shared memory object path\n");
-    char* smo_path = rl_path(fd, &fstats, DEV_INO_MAX_SIZE);
     debug("file descriptor dev block = %ld, inode = %ld\n", fstats.st_dev, fstats.st_ino);	// DEBUG
+    char smo_path[DEV_INO_MAX_SIZE];
+    int written = rl_path(smo_path, fd, &fstats, DEV_INO_MAX_SIZE);
+    smo_path[written] = '\0';
     // Récupération du prefixe du SMO
     ok("final shared memory object path = '%s'\n", smo_path);	// DEBUG
     // Ouverture du SMO
@@ -157,7 +159,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         if (smo_fd == -1) {
             error("couldn't open shared memory object\n");
             close(smo_fd);
-            free(smo_path);
+            
             return rl_fd;
         }
         ok("shared memory object exists, opened with fd = %d\n", smo_fd);	// DEBUG
@@ -165,7 +167,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     } else if (smo_fd == -1) { // Le SMO n'existe pas et on n'a pas pu le créer
         error("couldn't create shared memory object\n");
         close(smo_fd);
-        free(smo_path);
+        
         return rl_fd; // On retourne une structure vide avec un file_descriptor à -1 et un rl_file à NULL pour indiquer une erreur
     }
     if (!smo_was_on_disk) { // Le SMO n'existait pas, on le crée et on le tronque à la taille de la structure rl_open_file
@@ -179,7 +181,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         error("couldn't map shared memory object in memory\n");
         rl_fd.file_descriptor = -1;
         rl_fd.rl_file = NULL;
-        free(smo_path);
+        
         return rl_fd;
     }
     rl_open_file* rl_mapped_file = (rl_open_file*) mmap_ptr;
@@ -224,7 +226,7 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
         debug("&rl_all_files.open_files[i] = %p vs %p = rl_mapped_file\n", rl_all_files.open_files[i], rl_mapped_file);	// DEBUG
         if (&rl_all_files.open_files[i] == &rl_mapped_file) {
             debug("yes, returning\n");
-            free(smo_path);
+            
             return rl_fd;
         }
     }// Si on arrive ici, c'est que le fichier n'est pas déjà ouvert
@@ -232,14 +234,16 @@ rl_descriptor rl_open(const char* path, int flags, mode_t mode) {
     rl_all_files.open_files[rl_all_files.files_count] = rl_mapped_file;
     rl_all_files.files_count += 1;
     // Libération de la mémoire
-    free(smo_path);
+    
     return rl_fd;
 }
 
 int rl_close(rl_descriptor rl_fd) {
     rl_descriptor descriptor = rl_fd;
     pthread_mutex_lock(&(descriptor.rl_file->mutex));
-    char* smo_path = rl_path(rl_fd.file_descriptor, NULL, DEV_INO_MAX_SIZE);
+    char smo_path[DEV_INO_MAX_SIZE];
+    int written = rl_path(smo_path, rl_fd.file_descriptor, NULL, DEV_INO_MAX_SIZE);
+    smo_path[written] = '\0';
     int ret = close(rl_fd.file_descriptor);
     if (ret != 0) { return ret; }
     // On récupère le lock owner courant
