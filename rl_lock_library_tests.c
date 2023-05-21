@@ -5,14 +5,12 @@ int main(int argc, char **argv) {
 
     char *file_name;
     if (argc < 2) file_name = "test.txt"; else file_name = argv[1];
-    
     info("file_name from args = '%s'\n", file_name); // DEBUG
 
     rl_descriptor rl_fd1 = rl_open(file_name, O_RDWR, S_IRUSR | S_IWUSR);
-
     if (rl_fd1.file_descriptor < 0) { error("couldn't open file\n"); return -1; }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-
+    
     rl_descriptor rl_fd2 = rl_dup(rl_fd1); 
 
     /*
@@ -27,8 +25,6 @@ int main(int argc, char **argv) {
         debug("lock set\n");	// DEBUG
     */
 
-
-
     struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
     int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
     if (return_value == -1) error("could not set lock\n");
@@ -41,8 +37,6 @@ int main(int argc, char **argv) {
 
     pid_t pid = rl_fork();
     if (pid == 0) {
-        // On pose un verrou en lecture sur le fichier
-        debug("lock set\n"); // DEBUG
         // On lit le fichier
         char buffer[6];
         ssize_t re = rl_read(rl_fd1, buffer, 5);
