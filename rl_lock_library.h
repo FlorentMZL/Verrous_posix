@@ -20,10 +20,10 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_MEMORY 0
 
-int memory_allocations = 0;
+static int memory_allocations = 0;
 
 #define debug(...)                                                             \
     if (DEBUG)                                                                 \
@@ -202,3 +202,8 @@ ssize_t rl_write(rl_descriptor, const void *, size_t);
  * La fonction qui lit dans un fichier
  */
 ssize_t rl_read(rl_descriptor, void *, size_t);
+
+/**
+ * La fonction qui initialise la librairie
+*/
+int rl_init_library();
