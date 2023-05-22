@@ -24,9 +24,9 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 5
+#define LOG_LEVEL 3
 
-extern int memory_allocations;
+extern unsigned int memory_allocations;
 
 #define debug(...)                                                                              \
     if (LOG_LEVEL >= 3)                                                                         \
@@ -128,6 +128,18 @@ extern int memory_allocations;
     {                                   \
         trace("unlocking mutex\n");     \
         pthread_mutex_unlock(lock);     \
+    }
+
+#define pthread_cond_wait(cond, lock)         \
+    {                                   \
+        trace("waiting on lock..\n");          \
+        pthread_cond_wait(cond, lock);       \
+    }
+
+#define pthread_cond_broadcast(cond)                    \
+    {                                                   \
+        trace("broadcasting to waiting threads\n");     \
+        pthread_cond_broadcast(cond);                   \
     }
 
 /**

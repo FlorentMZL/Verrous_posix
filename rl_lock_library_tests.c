@@ -25,14 +25,9 @@ int main(int argc, char** argv) {
     */
 
     struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
-    int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
+    int return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
     if (return_value == -1) error("could not set lock\n");
     ok("lock set\n"); // DEBUG
-
-    // unlock previous lock
-    lock.l_type = F_UNLCK;
-    return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
-    if (return_value == -1) error("could not set lock\n");
 
     pid_t pid = rl_fork();
     if (pid == 0) {
@@ -53,7 +48,7 @@ int main(int argc, char** argv) {
         ok("buffer = '%s'\n", buffer); // DEBUG
         **/
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
-        int return_value = rl_fcntl(rl_fd2, F_SETLK, &lock);
+        int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
         if (return_value == -1) error("could not set lock\n");
 
         char buffer[6];
