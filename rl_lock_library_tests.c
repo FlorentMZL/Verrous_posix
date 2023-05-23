@@ -235,10 +235,10 @@ int test_4_write_then_read_blocking()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     int pid = rl_fork();
     if (pid == 0)
     {
+        rl_descriptor rl_fd2 = rl_dup(rl_fd1);
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
         int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
         if (return_value == -1)
@@ -272,7 +272,7 @@ int test_4_write_then_read_blocking()
         {
             ok("bytes_written = %ld\n", bytes_written); // DEBUG
         }
-        sleep(10);
+        sleep(3);
         lock.l_type = F_UNLCK;
         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
         if (return_value == -1)
