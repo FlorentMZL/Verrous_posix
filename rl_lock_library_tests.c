@@ -524,7 +524,6 @@ int test_9_concurrent_reads_and_writes_with_forks()
         rl_close(rl_fd1);
         exit(0);
     }
-
     int pid2 = rl_fork();
     if (pid2 == 0)
     {
@@ -594,45 +593,35 @@ int main(int argc, char* argv[])
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_1_read_then_write, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_2_read_then_write_blocking, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_3_write_then_read, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_4_write_then_read_blocking, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_5_concurrent_reads, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_6_concurrent_writes, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_7_lock_upgrade, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_8_concurrent_reads_and_writes_with_threads, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_9_concurrent_reads_and_writes_with_forks, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         if (test_result == 0) {
             printf("All tests passed!\n");
         } else {
             printf("Some tests failed!\n");
         }
     }
-    
     return 0;
 }
