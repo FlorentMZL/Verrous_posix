@@ -69,12 +69,12 @@ static int rl_lock_check(rl_lock *lock)
         lock->length = -1;
         lock->type = -1;
         lock->next_lock = -2;
-        
+
         return nxt;
     }
     else
     {
-      
+
         return -3;
     }
 }
@@ -378,9 +378,10 @@ int rl_close(rl_descriptor rl_fd)
                     current_lock.writers--;
                 }
                 int index = rl_lock_check(&current_lock);
-                if (index != -3){
+                if (index != -3)
+                {
                     debug("index is not -3\n");
-                
+
                     if (previous_index[0] == -3)
                     { // Si on doit supprimer le premier verrou dans la table
                         if (index == -1)
