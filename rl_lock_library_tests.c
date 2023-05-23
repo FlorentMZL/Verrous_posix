@@ -95,11 +95,14 @@ int main(int argc, char **argv)
         if (wr == -1) error("could not write file\n");
         ok("buffer = '%s'\n", buffer); // DEBUG
         **/
-        /*struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
+        struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
         int return_value = rl_fcntl(rl_fd2, F_SETLK, &lock);
         if (return_value == -1) error("could not set lock\n");
-
-        char buffer[6];
+        sleep(5);
+        struct flock lock2 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
+        return_value = rl_fcntl(rl_fd2, F_SETLK, &lock2);
+        if (return_value == -1) error("could not set lock\n");
+       /* char buffer[6];
         ssize_t re = rl_read(rl_fd2, buffer, 5);
         buffer[5] = '\0';
         if (re == -1) { error("could not read file\n"); } else ok("buffer = '%s'\n", buffer); // DEBUG

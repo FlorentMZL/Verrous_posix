@@ -1437,7 +1437,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             long int region_end = lock->l_len + lock->l_start;
             BOOLEAN has_next = TRUE;
             while (has_next)
-            { // Très moche mais je sais pas si on peut faire autrement (il est 23;55 je suis fatigué)
+            {
                 // BOUCLE VERIFIANT SI IL Y A DES VERROUS QUI EMPECHENT DE POSER LE NOTRE.
                 if (current_lock.starting_offset + current_lock.length < lock->l_start)
                 { // Si le verrou observé finit avant notre intervalle
@@ -1513,6 +1513,12 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         { // Le verrou en ecriture ne nous appartient pas, on ne peut pas lire.
                             while (current_lock.writers > 0)
                             {
+                                for(int user= 0; user<current_lock.owners_count; user++){
+                                    if(!rl_is_thread_alive(current_lock.lock_owners[user].thread_id)){
+                                        info("thread %d is dead\n", current_lock.lock_owners[user].thread_id);
+                                        //Enlever ecrivain.. enlever le verrou de la liste.... 
+                                    }
+                                }
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                 pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
                                 current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
@@ -1741,10 +1747,18 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     {
                         if (current_lock.owners_count > 1)
                         {
-                            errno = EAGAIN;
-                            error("read lock already present\n");
-                            pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                            return -1;
+                            while (current_lock.writers > 0)
+                            {
+                                for(int user= 0; user<current_lock.owners_count; user++){
+                                    if(!rl_is_thread_alive(current_lock.lock_owners[user].thread_id)){
+                                        info("thread %d is dead\n", current_lock.lock_owners[user].thread_id);
+                                        //Enlever ecrivain.. enlever le verrou de la liste.... 
+                                    }
+                                }
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
+                                current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+                            }
                         }
                         else
                         { // Si il n'y a qu'un owner et que c'est le thread courant, on pourra poser un verrou par dessus.
@@ -1766,10 +1780,18 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                             else
                             {
-                                errno = EAGAIN;
-                                error("read lock already present\n");
+                                while (current_lock.writers > 0)
+                            {
+                                for(int user= 0; user<current_lock.owners_count; user++){
+                                    if(!rl_is_thread_alive(current_lock.lock_owners[user].thread_id)){
+                                        info("thread %d is dead\n", current_lock.lock_owners[user].thread_id);
+                                        //Enlever ecrivain.. enlever le verrou de la liste.... 
+                                    }
+                                }
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                return -1;
+                                pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
+                                current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+                            }
                             }
                         }
                     }
@@ -1796,10 +1818,18 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         }
                         if (!same_owner)
                         {
-                            errno = EAGAIN;
-                            error("write lock already present\n");
-                            pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                            return -1;
+                           while (current_lock.writers > 0)
+                            {
+                                for(int user= 0; user<current_lock.owners_count; user++){
+                                    if(!rl_is_thread_alive(current_lock.lock_owners[user].thread_id)){
+                                        info("thread %d is dead\n", current_lock.lock_owners[user].thread_id);
+                                        //Enlever ecrivain.. enlever le verrou de la liste.... 
+                                    }
+                                }
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
+                                current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+                            }
                         }
                         if (current_lock.next_lock >= 0)
                         {
