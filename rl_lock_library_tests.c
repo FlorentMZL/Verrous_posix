@@ -65,7 +65,7 @@ void *write_thread(void *arg)
 
 int test_1_read_then_write()
 {
-    info("starting test 1: read then write\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -82,13 +82,14 @@ int test_1_read_then_write()
 
     char buffer[N + 1];
     ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
+    buffer[N + 1] = '\0'; 
     if (bytes_read == -1)
     {
         error("could not read file\n");
     }
     else
     {
-        ok("buffer = '%s'\n", buffer); // DEBUG
+        test("read %ld bytes\n", bytes_read); // DEBUG
     }
 
     lock.l_type = F_UNLCK;
@@ -105,7 +106,7 @@ int test_1_read_then_write()
     }
     else
     {
-        ok("bytes_written = %ld\n", bytes_written); // DEBUG
+        test("%ld bytes written back\n", bytes_written); // DEBUG
     }
 
     rl_close(rl_fd1);
@@ -220,7 +221,7 @@ int test_3_fork()
 
 int test_4_write_then_read_blocking()
 {
-    info("starting test 4: write then read - blocking\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -228,10 +229,10 @@ int test_4_write_then_read_blocking()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     int pid = rl_fork();
     if (pid == 0)
     {
+        rl_descriptor rl_fd2 = rl_dup(rl_fd1);
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
         int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
         if (return_value == -1)
@@ -265,7 +266,7 @@ int test_4_write_then_read_blocking()
         {
             ok("bytes_written = %ld\n", bytes_written); // DEBUG
         }
-        sleep(10);
+        sleep(3);
         lock.l_type = F_UNLCK;
         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
         if (return_value == -1)
@@ -282,7 +283,7 @@ int test_4_write_then_read_blocking()
 
 int test_5_concurrent_reads()
 {
-    info("starting test 5: concurrent reads\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -303,7 +304,7 @@ int test_5_concurrent_reads()
         ssize_t bytes_read = rl_read(rl_fd2, buffer, N);
         if (bytes_read == -1)
         {
-            error("could not read file\n");
+            test("could not read file [expected]\n");
         }
         else
         {
@@ -345,7 +346,7 @@ int test_5_concurrent_reads()
 
 int test_6_concurrent_writes()
 {
-    info("starting test 6: concurrent writes\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -406,7 +407,7 @@ int test_6_concurrent_writes()
 
 int test_7_lock_upgrade()
 {
-    info("starting test 7: lock upgrade\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -455,7 +456,7 @@ int test_7_lock_upgrade()
 
 int test_8_concurrent_reads_and_writes_with_threads()
 {
-    info("starting test 8: concurrent reads and writes with threads\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -496,7 +497,7 @@ int test_8_concurrent_reads_and_writes_with_threads()
 
 int test_9_concurrent_reads_and_writes_with_forks()
 {
-    info("starting test 9: concurrent reads and writes with forks\n");
+    test("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -551,18 +552,115 @@ int test_9_concurrent_reads_and_writes_with_forks()
         rl_close(rl_fd1);
         exit(0);
     }
-
     int status;
     waitpid(pid1, &status, 0);
     waitpid(pid2, &status, 0);
-
     rl_close(rl_fd1);
     return 0;
 }
 
-int main(int argc, char* argv[])
+int test_10_ultimate_test()
 {
-    if (argc > 1) {
+    test("starting test...\n");
+
+    // Open the file
+    rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
+    if (rl_fd1.file_descriptor < 0)
+    {
+        error("couldn't open file\n");
+        return -1;
+    }
+    debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
+
+    // Duplicate the file descriptor
+    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
+    if (rl_fd2.file_descriptor < 0)
+    {
+        error("couldn't duplicate file descriptor\n");
+        rl_close(rl_fd1);
+        return -1;
+    }
+    debug("duplicated file descriptor = %d\n", rl_fd2.file_descriptor); // DEBUG
+
+    // Create a thread for reading
+    pthread_t read_thread_id;
+    if (pthread_create(&read_thread_id, NULL, read_thread, &rl_fd1) != 0)
+    {
+        error("failed to create read thread\n");
+        rl_close(rl_fd1);
+        rl_close(rl_fd2);
+        return -1;
+    }
+
+    // Fork a child process for writing
+    int pid = rl_fork();
+    if (pid == 0)
+    {
+        // Write operation in the child process
+        struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
+        int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
+        if (return_value == -1)
+            error("could not set lock\n");
+        ok("lock set\n"); // DEBUG
+        ssize_t bytes_written = rl_write(rl_fd2, "hello, world!", strlen("hello, world!"));
+        if (bytes_written == -1)
+        {
+            error("could not write file\n");
+        }
+        else
+        {
+            ok("bytes_written = %ld\n", bytes_written); // DEBUG
+        }
+        rl_close(rl_fd2);
+    }
+    else if (pid > 0)
+    {
+        // Read operation in the parent process
+        struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
+        int return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
+        if (return_value == -1)
+            error("could not set lock\n");
+        ok("lock set\n"); // DEBUG
+        char buffer[N + 1];
+        ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
+        if (bytes_read == -1)
+        {
+            error("could not read file\n");
+        }
+        else
+        {
+            ok("buffer = '%s'\n", buffer); // DEBUG
+        }
+        lock.l_type = F_UNLCK;
+        return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
+        if (return_value == -1)
+            error("could not set lock\n");
+        ok("lock set\n"); // DEBUG
+        rl_close(rl_fd1);
+    }
+    else
+    {
+        // Error forking a child process
+        error("fork failed\n");
+        rl_close(rl_fd1);
+        rl_close(rl_fd2);
+        return -1;
+    }
+
+    // Wait for the read thread to finish
+    if (pthread_join(read_thread_id, NULL) != 0)
+    {
+        error("failed to join read thread\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc > 1)
+    {
         int test_number = atoi(argv[1]);
         switch (test_number) {
             case 1:
@@ -587,12 +685,22 @@ int main(int argc, char* argv[])
                 printf("Invalid test number\n");
                 break;
         }
-    } else {
-        printf("Running all tests...\n");
+        if (r == 0)
+        {
+            test("test passed successfully\n");
+        } else 
+        {
+            error("test failed\n");
+        }
+        return r;
+    }
+    else
+    {
+        test("Running all tests...\n");
         int test_result = 0;
         pthread_t thread;
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_1_read_then_write, NULL);
+        pthread_create(&thread, NULL, (void *)&test_1_read_then_write, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_2_fusion_division_lock, NULL);
@@ -601,27 +709,30 @@ int main(int argc, char* argv[])
         pthread_create(&thread, NULL, (void*) &test_3_fork, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_4_write_then_read_blocking, NULL);
+        pthread_create(&thread, NULL, (void *)&test_4_write_then_read_blocking, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_5_concurrent_reads, NULL);
+        pthread_create(&thread, NULL, (void *)&test_5_concurrent_reads, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_6_concurrent_writes, NULL);
+        pthread_create(&thread, NULL, (void *)&test_6_concurrent_writes, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_7_lock_upgrade, NULL);
+        pthread_create(&thread, NULL, (void *)&test_7_lock_upgrade, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_8_concurrent_reads_and_writes_with_threads, NULL);
+        pthread_create(&thread, NULL, (void *)&test_8_concurrent_reads_and_writes_with_threads, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_9_concurrent_reads_and_writes_with_forks, NULL);
+        pthread_create(&thread, NULL, (void *)&test_9_concurrent_reads_and_writes_with_forks, NULL);
         pthread_join(thread, NULL);
-        if (test_result == 0) {
-            printf("All tests passed!\n");
-        } else {
-            printf("Some tests failed!\n");
+        if (test_result == 0)
+        {
+            test("All tests passed!\n");
+        }
+        else
+        {
+            test("Some tests failed!\n");
         }
     }
     return 0;

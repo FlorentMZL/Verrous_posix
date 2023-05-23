@@ -7,9 +7,12 @@
 
 int memory_allocations = 0;
 
-
-void notify(int sig){
-
+/**
+ * Signal handler
+ */
+void notify(int sig)
+{
+    return;
 }
 /**
  * La fonction qui initialise un mutex
@@ -54,15 +57,14 @@ static int rl_lock_check(rl_lock *lock)
 {
     // Retourne l'indice du prochain lock si jamais il y a suppression du lock courant
     int nxt = lock->next_lock;
-    info("next lock index = %d\n", nxt);
+    debug("next lock index = %d\n", nxt);
     if (lock->owners_count == 0)
     {
-        info("owners = 0\n");
+        debug("lock owners = 0\n");
         // On reset le lock
         lock->readers = 0;
         lock->writers = 0;
         pthread_cond_broadcast(&lock->cond);
-
         lock->starting_offset = -1;
         lock->length = -1;
         lock->type = -1;
@@ -82,7 +84,7 @@ static int rl_add_lock(rl_lock *lock, int id_back, int id_front, off_t starting_
 {
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
-        info("adding lock [ next = %d | previous = %d ]\n", id_front, id_back);
+        debug("adding lock [ next = %d | previous = %d ]\n", id_front, id_back);
         if (rl_fd->rl_file->lock_table[i].next_lock == -2)
         {
             rl_fd->rl_file->lock_table[i].lock_owners[0] = owner;
@@ -90,7 +92,7 @@ static int rl_add_lock(rl_lock *lock, int id_back, int id_front, off_t starting_
             rl_fd->rl_file->lock_table[i].length = length;
             rl_fd->rl_file->lock_table[i].type = type;
             rl_fd->rl_file->lock_table[i].owners_count = 1;
-            
+
             rl_fd->rl_file->lock_table[i].next_lock = id_front;
             if (id_back != -2)
                 rl_fd->rl_file->lock_table[id_back].next_lock = i;
@@ -209,7 +211,7 @@ rl_descriptor rl_open(const char *path, int flags, mode_t mode)
         close(fd);
         return rl_fd;
     }
-    ok("file descriptor = %d\n", fd); // DEBUG
+    debug("file (%d) opened successfully\n", fd); // DEBUG
     // Récupération des informations du fichier
     struct stat fstats;
     debug("getting file stats\n");
@@ -246,7 +248,7 @@ rl_descriptor rl_open(const char *path, int flags, mode_t mode)
     }
     if (!smo_was_on_disk)
     {                                                                                                   // Le SMO n'existait pas, on le crée et on le tronque à la taille de la structure rl_open_file
-        ok("shared memory object doesn't exist, creating & truncating to %ld\n", sizeof(rl_open_file)); // DEBUG
+        info("shared memory object doesn't exist, creating & truncating to %ld\n", sizeof(rl_open_file)); // DEBUG
         ftruncate(smo_fd, sizeof(rl_open_file));
     }
     debug("mapping shared memory object in memory\n");
@@ -316,11 +318,11 @@ rl_descriptor rl_open(const char *path, int flags, mode_t mode)
         if (&rl_all_files.open_files[i] == &rl_mapped_file)
         {
             rl_mapped_file->open_instances++;
-            ok("open instances of %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
+            debug("open instances of %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
             return rl_fd;
         }
     } // Si on arrive ici, c'est que le fichier n'est pas déjà ouvert
-    ok("no, appending to opened files\n");
+    debug("no, appending to opened files\n");
     rl_all_files.open_files[rl_all_files.files_count] = rl_mapped_file;
     rl_all_files.files_count += 1;
     ok("open instances of %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
@@ -341,20 +343,17 @@ int rl_close(rl_descriptor rl_fd)
         return ret;
     }
     // On récupère le lock owner courant
-
     if (descriptor.rl_file->first_lock == -2)
     {
         pthread_mutex_unlock(&(descriptor.rl_file->mutex));
         return ret;
     }
-
     rl_lock current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
-
     BOOLEAN has_next = TRUE;
     int previous_index[2] = {-3, descriptor.rl_file->first_lock};
     while (has_next)
     {
-        info("owners = %ld\n", current_lock.owners_count);
+        debug("current lock has %ld owner(s)\n", current_lock.owners_count);
         for (int j = 0; j < current_lock.owners_count; j++)
         {
             // On enleve le proprietaire du lock
@@ -369,13 +368,13 @@ int rl_close(rl_descriptor rl_fd)
                 }
                 current_lock.owners_count--;
                 if (current_lock.type == F_RDLCK)
-                        {
-                            current_lock.readers--;
-                        }
-                        else
-                        {
-                            current_lock.writers--;
-                        }
+                {
+                    current_lock.readers--;
+                }
+                else
+                {
+                    current_lock.writers--;
+                }
                 int index = rl_lock_check(&current_lock);
                 if (index != -3)
                     debug("index is not -3\n");
@@ -388,7 +387,7 @@ int rl_close(rl_descriptor rl_fd)
                             has_next = FALSE;
                             break;
                         }
-                        debug("lock index in table: %d\n", index);
+                        debug("lock has index %d in table\n", index);
                         descriptor.rl_file->first_lock = index;
                         previous_index[1] = index;
                         current_lock = descriptor.rl_file->lock_table[index];
@@ -450,7 +449,8 @@ int rl_close(rl_descriptor rl_fd)
     {
         descriptor.rl_file->open_instances--;
         ok("%p has %d open instances left\n", &descriptor.rl_file, descriptor.rl_file->open_instances);
-        if (descriptor.rl_file->open_instances == 0) {
+        if (descriptor.rl_file->open_instances == 0)
+        {
             if (shm_unlink(smo_path) != 0)
             {
                 error("could not unlink shared memory object @ '%s'\n", smo_path);
@@ -463,14 +463,14 @@ int rl_close(rl_descriptor rl_fd)
 
 int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
 {
-    size_t lockLen = lock->l_len;
-    if (lockLen == 0)
+    size_t lock_length = lock->l_len;
+    if (lock_length == 0)
     {
         struct stat statbuf;
         fstat(descriptor.file_descriptor, &statbuf);
-        lockLen = statbuf.st_size - lock->l_start;
+        lock_length = statbuf.st_size - lock->l_start;
     }
-    debug("locklen : %ld\n", lockLen);
+    debug("lock length = %ld\n", lock_length);
     pthread_mutex_lock(&(descriptor.rl_file->mutex));
     rl_lock_owner lock_owner = {.thread_id = getpid(), .file_descriptor = descriptor.file_descriptor};
     switch (command)
@@ -504,7 +504,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
         // On recupère le type d'opération
         switch (lock->l_type)
         {
-
         case F_RDLCK:
             info("requesting a read lock\n");
             print_flock(lock); // DEBUG
@@ -515,7 +514,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             BOOLEAN has_next = TRUE;
             while (has_next)
             {
-                info("recuperation du lock owner courant, first lock : %d\n", current_lock.next_lock);
+                debug("looking for the current lock's (%d) owner\n", current_lock.next_lock);
                 size_t lengthCurrent = current_lock.length;
                 if (lengthCurrent == 0)
                 {
@@ -523,11 +522,9 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     fstat(descriptor.file_descriptor, &statbuf);
                     lengthCurrent = statbuf.st_size - current_lock.starting_offset;
                 }
-
                 // BOUCLE VERIFIANT SI IL Y A DES VERROUS QUI EMPECHENT DE POSER LE NOTRE.
                 if (current_lock.length != 0 && current_lock.starting_offset + lengthCurrent <= lock->l_start)
                 {
-
                     // Si le verrou observé finit avant notre intervalle
                     if (current_lock.next_lock >= 0)
                     { // Si y'a un verrou après on passe au suivant
@@ -545,7 +542,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 descriptor.rl_file->lock_table[i].type = lock->l_type;
                                 descriptor.rl_file->lock_table[i].owners_count = 1;
                                 descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
-                                descriptor.rl_file->lock_table[i].readers+=1;
+                                descriptor.rl_file->lock_table[i].readers += 1;
                                 // current_lock.next_lock = i;
                                 for (int j = 0; j < NB_LOCKS; j++)
                                 {
@@ -569,7 +566,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         return -1;
                     }
                 }
-                else if (current_lock.starting_offset >= lock->l_start + lockLen)
+                else if (current_lock.starting_offset >= lock->l_start + lock_length)
                 { // Tous les verrous suivants seront en dehors de l'intervalle car la liste est triée.
                     break;
                 }
@@ -584,7 +581,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             if (current_lock.lock_owners[j].thread_id == getpid() && current_lock.lock_owners[j].file_descriptor == descriptor.file_descriptor)
                             {
                                 // si le lock appartient au thread courant:
-
                                 same_owner = TRUE;
                                 // On définit la nouvelle borne pour la fusion de ce verrou (qui sera changé en verrou en lecture)
                                 if (current_lock.starting_offset <= region_start)
@@ -613,7 +609,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         {
                             if (current_lock.lock_owners[j].thread_id == getpid() && current_lock.lock_owners[j].file_descriptor == descriptor.file_descriptor)
                             {
-
                                 // Si le lock appartient au thread courant, on met a jour les bornes pour la fusion
                                 if (current_lock.starting_offset <= region_start)
                                     region_start = current_lock.starting_offset;
@@ -646,16 +641,16 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             int previous_index[2] = {-3, descriptor.rl_file->first_lock}; // pour maintenir à jour la liste chainée
             while (has_next)
             {
-                size_t lengthcurrent = current_lock.length;
-                if (lengthcurrent == 0)
+                size_t current_lock_length = current_lock.length;
+                if (current_lock_length == 0)
                 {
                     struct stat statbuf;
                     fstat(descriptor.file_descriptor, &statbuf);
-                    lengthcurrent = statbuf.st_size - current_lock.starting_offset;
+                    current_lock_length = statbuf.st_size - current_lock.starting_offset;
                 }
                 // BOUCLE QUI ENLEVE L'OWNING D'UN VERROU SUR L'INTERVALLE : on enleve l'accès à un verrou pour rentrer dans un verrou qui sera plus global.
                 // si c'est un verrou en ecriture, on part du verrou et on rejoint le plus gros verrou en lecture (rejoindre = plus tard dans le code)
-                if (current_lock.starting_offset + lengthcurrent < lock->l_start)
+                if (current_lock.starting_offset + current_lock_length < lock->l_start)
                 {
                     if (current_lock.next_lock >= 0)
                     {
@@ -666,7 +661,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     else
                         has_next = FALSE;
                 }
-                else if (current_lock.starting_offset >= lock->l_start + lockLen)
+                else if (current_lock.starting_offset >= lock->l_start + lock_length)
                     break;
                 else
                 {
@@ -684,13 +679,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                             current_lock.owners_count--;
                             if (current_lock.type == F_RDLCK)
-                        {
-                            current_lock.readers--;
-                        }
-                        else
-                        {
-                            current_lock.writers--;
-                        }
+                            {
+                                current_lock.readers--;
+                            }
+                            else
+                            {
+                                current_lock.writers--;
+                            }
                             int index = rl_lock_check(&current_lock); // Si le verrou devient vide, ça le "supprime" et retourne l'indice du verrou d'après. -3 si pas vide
                             if (index != -3)
                             {
@@ -750,24 +745,24 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     }
                 }
             }
-            size_t longueur;
+            size_t final_length;
             struct stat statbuf;
             fstat(descriptor.file_descriptor, &statbuf);
-            size_t lenfile = statbuf.st_size;
-            if (lenfile == region_end) // Si on veut un verrou sur tout le fichier
+            size_t file_length = statbuf.st_size;
+            if (file_length == region_end) // Si on veut un verrou sur tout le fichier
             {
-                longueur = 0;
+                final_length = 0;
             }
             else
             {
-                longueur = region_end - region_start;
+                final_length = region_end - region_start;
             }
             if (descriptor.rl_file->first_lock == -2)
             { // Si on a supprimé tous les verrous sur le fichier :
                 descriptor.rl_file->first_lock = 0;
                 descriptor.rl_file->lock_table[0].readers = 1; // HERE
                 descriptor.rl_file->lock_table[0].writers = 0; // HERE
-                descriptor.rl_file->lock_table[0].length = longueur;
+                descriptor.rl_file->lock_table[0].length = final_length;
                 descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
                 descriptor.rl_file->lock_table[0].next_lock = -1;
                 descriptor.rl_file->lock_table[0].owners_count = 1;
@@ -787,11 +782,11 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                 if (current_lock.starting_offset < region_start)
                 {
                     if (current_lock.next_lock == -1)
-                        return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, longueur, F_RDLCK, getpid(), &descriptor, lock_owner);
+                        return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, final_length, F_RDLCK, getpid(), &descriptor, lock_owner);
                     else
                     {
                         if (descriptor.rl_file->lock_table[current_lock.next_lock].starting_offset >= region_start)
-                            return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, longueur, F_RDLCK, getpid(), &descriptor, lock_owner);
+                            return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, final_length, F_RDLCK, getpid(), &descriptor, lock_owner);
                         else
                         {
                             previous_index[0] = previous_index[1];
@@ -801,7 +796,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     }
                 }
                 else
-                    return rl_add_lock(&current_lock, -2, descriptor.rl_file->first_lock, region_start, longueur, F_RDLCK, getpid(), &descriptor, lock_owner);
+                    return rl_add_lock(&current_lock, -2, descriptor.rl_file->first_lock, region_start, final_length, F_RDLCK, getpid(), &descriptor, lock_owner);
             }
             break;
         case F_WRLCK:
@@ -811,7 +806,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             region_start = lock->l_start;
             region_end = lock->l_start + lockLen;
             has_next = TRUE;
-
             while (has_next)
             {
                 size_t lengthCurrent = current_lock.length;
@@ -837,7 +831,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 descriptor.rl_file->lock_table[i].type = lock->l_type;
                                 descriptor.rl_file->lock_table[i].owners_count = 1;
                                 descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
-                                descriptor.rl_file->lock_table[i].writers+= 1;
+                                descriptor.rl_file->lock_table[i].writers += 1;
                                 // current_lock.next_lock = i;
                                 for (int j = 0; j < NB_LOCKS; j++)
                                 {
@@ -860,7 +854,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         return -1;
                     }
                 }
-                else if (current_lock.starting_offset >= lock->l_start + lockLen) // Tous les verrous suivants seront en dehors de l'intervalle car la liste est triée.
+                else if (current_lock.starting_offset >= lock->l_start + lock_length) // Tous les verrous suivants seront en dehors de l'intervalle car la liste est triée.
                     break;
                 else
                 {
@@ -900,7 +894,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                         }
                     }
-
                     else if (current_lock.type == F_WRLCK)
                     {
                         BOOLEAN same_owner = FALSE;
@@ -963,7 +956,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     else
                         has_next = FALSE;
                 }
-                else if (current_lock.starting_offset >= lock->l_start + lockLen)
+                else if (current_lock.starting_offset >= lock->l_start + lock_length)
                     break;
                 else
                 {
@@ -979,13 +972,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 current_lock.lock_owners[k] = current_lock.lock_owners[k + 1];
                             current_lock.owners_count--;
                             if (current_lock.type == F_RDLCK)
-                        {
-                            current_lock.readers--;
-                        }
-                        else
-                        {
-                            current_lock.writers--;
-                        }
+                            {
+                                current_lock.readers--;
+                            }
+                            else
+                            {
+                                current_lock.writers--;
+                            }
                             int index = rl_lock_check(&current_lock);
                             if (index != -3)
                             {
@@ -1044,16 +1037,15 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     }
                 }
             }
-
             fstat(descriptor.file_descriptor, &statbuf);
-            lenfile = statbuf.st_size;
-            if (lenfile == region_end) // Si on veut un verrou sur tout le fichier
+            file_length = statbuf.st_size;
+            if (file_length == region_end) // Si on veut un verrou sur tout le fichier
             {
-                longueur = 0;
+                final_length = 0;
             }
             else
             {
-                longueur = region_end - region_start;
+                final_length = region_end - region_start;
             }
 
             if (descriptor.rl_file->first_lock == -2)
@@ -1061,7 +1053,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                 descriptor.rl_file->first_lock = 0;
                 descriptor.rl_file->lock_table[0].readers = 0;
                 descriptor.rl_file->lock_table[0].writers = 1;
-                descriptor.rl_file->lock_table[0].length = longueur;
+                descriptor.rl_file->lock_table[0].length = final_length;
                 descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
                 descriptor.rl_file->lock_table[0].next_lock = -1;
                 descriptor.rl_file->lock_table[0].owners_count = 1;
@@ -1081,11 +1073,11 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                 if (current_lock.starting_offset < region_start)
                 {
                     if (current_lock.next_lock == -1)
-                        return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, longueur, F_WRLCK, getpid(), &descriptor, lock_owner);
+                        return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, final_length, F_WRLCK, getpid(), &descriptor, lock_owner);
                     else
                     {
                         if (descriptor.rl_file->lock_table[current_lock.next_lock].starting_offset >= region_start)
-                            return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, longueur, F_WRLCK, getpid(), &descriptor, lock_owner);
+                            return rl_add_lock(&current_lock, previous_index[1], current_lock.next_lock, region_start, final_length, F_WRLCK, getpid(), &descriptor, lock_owner);
                         else
                         {
                             previous_index[0] = previous_index[1];
@@ -1095,7 +1087,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     }
                 }
                 else
-                    return rl_add_lock(&current_lock, -2, descriptor.rl_file->first_lock, region_start, longueur, F_WRLCK, getpid(), &descriptor, lock_owner);
+                    return rl_add_lock(&current_lock, -2, descriptor.rl_file->first_lock, region_start, final_length, F_WRLCK, getpid(), &descriptor, lock_owner);
             }
             ok("done setting a r/w lock\n");
             break;
@@ -1123,7 +1115,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     fstat(descriptor.file_descriptor, &statbuf);
                     lengthCurrent = statbuf.st_size - current_lock.starting_offset;
                 }
-                if (current_lock.starting_offset <= lock->l_start && current_lock.starting_offset + lengthCurrent >= lock->l_start + lockLen)
+                if (current_lock.starting_offset <= lock->l_start && current_lock.starting_offset + lengthCurrent >= lock->l_start + lock_length)
                 { // Si on a un lock qui englobe l'intervalle a unlock
                     for (size_t j = 0; j < current_lock.owners_count; j++)
                     {
@@ -1157,25 +1149,25 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             }
             else
             {
-                info("current_lock start : %ld, previous index 0 : %dd, previous index 1 : %d\n", current_lock.starting_offset, previous_index[0], previous_index[1]);
-                size_t lengthCurrent = current_lock.length;
-                if (lengthCurrent == 0)
+                debug("current lock [ start = %ld | previous[0] = %d | previous[1] = %d ]\n", current_lock.starting_offset, previous_index[0], previous_index[1]);
+                size_t current_lock_length = current_lock.length;
+                if (current_lock_length == 0)
                 {
                     struct stat statbuf;
                     fstat(descriptor.file_descriptor, &statbuf);
-                    lengthCurrent = statbuf.st_size - current_lock.starting_offset;
+                    current_lock_length = statbuf.st_size - current_lock.starting_offset;
                 }
                 short lock_type = current_lock.type;
                 long int left_lock_start = current_lock.starting_offset;
                 long int left_lock_length = lock->l_start - current_lock.starting_offset;
-                long int right_lock_start = lock->l_start + lockLen;
-                long int right_lock_length = current_lock.starting_offset + lengthCurrent - (lock->l_start + lockLen);
-                int droiteEnd = 0; // Pour savoir si le verrou a droite va jusqu'a la fin du fichier.
+                long int right_lock_start = lock->l_start + lock_length;
+                long int right_lock_length = current_lock.starting_offset + current_lock_length - (lock->l_start + lock_length);
+                int extends_till_end = 0; // Pour savoir si le verrou a droite va jusqu'a la fin du fichier.
                 fstat(descriptor.file_descriptor, &statbuf);
-                lenfile = statbuf.st_size;
-                if (lengthCurrent == lenfile)
+                file_length = statbuf.st_size;
+                if (current_lock_length == file_length)
                 {
-                    droiteEnd = 1;
+                    extends_till_end = 1;
                 }
                 // On  unlock le lock englobant (on ajoutera les nouveaux locks après)
                 for (int j = 0; j < current_lock.owners_count; j++)
@@ -1194,12 +1186,12 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         {
                             current_lock.writers--;
                         }
-                       
+
                         for (int k = j; k < current_lock.owners_count - 1; k++)
                             current_lock.lock_owners[k] = current_lock.lock_owners[k + 1];
                         current_lock.owners_count--;
                         int index = rl_lock_check(&current_lock);
-                        info("index = %d\n", index);
+                        debug("lock index = %d\n", index);
                         if (index != -3)
                         {
                             if (previous_index[0] == -3)
@@ -1207,7 +1199,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 if (index == -1)
                                 {
                                     descriptor.rl_file->first_lock = -2;
-                                    
+
                                     break;
                                 }
                                 descriptor.rl_file->first_lock = index;
@@ -1223,12 +1215,11 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                             else
                             {
-                                info("previous index : %d\n", previous_index[0]);
+                                info("previous index = %d\n", previous_index[0]);
                                 descriptor.rl_file->lock_table[previous_index[0]].next_lock = index;
                                 break;
                             }
                         }
-                        
                     }
                 }
                 // On verifie si on doit couper le lock en 2 (ou juste le rétrecir)
@@ -1271,11 +1262,9 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             {
                                 if (current_lock.next_lock >= 0)
                                 {
-                                    
                                     previous_index[0] = previous_index[1];
                                     previous_index[1] = current_lock.next_lock;
                                     current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
-                                 
                                     debug("previous indices: (%d, %d)\n", previous_index[0], previous_index[1]);
                                 }
                                 else
@@ -1297,13 +1286,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                     descriptor.rl_file->lock_table[i].lock_owners[0].thread_id = getpid();
                                     descriptor.rl_file->lock_table[i].lock_owners[0].file_descriptor = descriptor.file_descriptor;
                                     descriptor.rl_file->lock_table[i].type = lock_type;
-                                    if(lock_type == F_RDLCK)
-                                    descriptor.rl_file->lock_table[i].readers+=1;
+                                    if (lock_type == F_RDLCK)
+                                        descriptor.rl_file->lock_table[i].readers += 1;
                                     else
-                                    descriptor.rl_file->lock_table[i].writers+=1;
+                                        descriptor.rl_file->lock_table[i].writers += 1;
                                     if (previous_index[0] >= 0 && descriptor.rl_file->lock_table[previous_index[0]].starting_offset <= left_lock_start)
-                                    { 
-                                      
+                                    {
+
                                         // On le met au bon endroit dans la liste chainée
                                         // Si le dernier verrou observé est le dernier de la liste chainée
                                         ssize_t oldnext = descriptor.rl_file->lock_table[previous_index[0]].next_lock;
@@ -1341,7 +1330,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     {
                         // Si il n'y a plus aucun verroun on ajoute le verrou
                         descriptor.rl_file->lock_table[0].starting_offset = right_lock_start;
-                        if (droiteEnd == 1)
+                        if (extends_till_end == 1)
                             descriptor.rl_file->lock_table[0].length = 0;
                         else
                             descriptor.rl_file->lock_table[0].length = right_lock_length;
@@ -1403,16 +1392,18 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 if (descriptor.rl_file->lock_table[i].next_lock == -2)
                                 {
                                     descriptor.rl_file->lock_table[i].starting_offset = left_lock_start;
-                                    if(droiteEnd==1) descriptor.rl_file->lock_table[i].length = 0;
-                                    else descriptor.rl_file->lock_table[i].length = right_lock_length;
+                                    if (extends_till_end == 1)
+                                        descriptor.rl_file->lock_table[i].length = 0;
+                                    else
+                                        descriptor.rl_file->lock_table[i].length = right_lock_length;
                                     descriptor.rl_file->lock_table[i].owners_count = 1;
                                     descriptor.rl_file->lock_table[i].lock_owners[0].thread_id = getpid();
                                     descriptor.rl_file->lock_table[i].lock_owners[0].file_descriptor = descriptor.file_descriptor;
-                                    descriptor.rl_file->lock_table[i].type=lock_type;
-                                    if(lock_type == F_RDLCK)
-                                    descriptor.rl_file->lock_table[i].readers+=1;
+                                    descriptor.rl_file->lock_table[i].type = lock_type;
+                                    if (lock_type == F_RDLCK)
+                                        descriptor.rl_file->lock_table[i].readers += 1;
                                     else
-                                    descriptor.rl_file->lock_table[i].writers+=1;
+                                        descriptor.rl_file->lock_table[i].writers += 1;
                                     if (previous_index[0] >= 0 && descriptor.rl_file->lock_table[previous_index[0]].starting_offset <= left_lock_start)
                                     { // On le met au bon endroit dans la liste chainée
                                         // Si le dernier verrou observé est le dernier de la liste chainée
@@ -1441,7 +1432,6 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                         }
                         info("lock added on the right [ start = %ld | length = %ld ]\n", right_lock_start, right_lock_length);
-                       
                     }
                 }
                 info("locks added (or not) after unlocking\n");
@@ -1451,7 +1441,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
         }
         break;
     case F_SETLKW:
-    info("premier lock : %d\n", descriptor.rl_file->first_lock);
+        info("premier lock : %d\n", descriptor.rl_file->first_lock);
         if (descriptor.rl_file->first_lock == -2 && (lock->l_type == F_RDLCK || lock->l_type == F_WRLCK))
         {
             // Si il n'y a aucun verrou sur le fichier, on pose direct
@@ -1522,7 +1512,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 ok("read lock granted [ start = %ld | length = %ld ]\n", lock->l_start, lock->l_len);
                                 pthread_cond_broadcast(&(current_lock.cond));
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                
+
                                 return 0;
                             }
                         }
@@ -1570,24 +1560,22 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                 pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
                                 debug("mutex unlocked\n");
-                                
-                               
                             }
-                            if(descriptor.rl_file->first_lock ==-2){
-                                    descriptor.rl_file->first_lock = 0;
-                                    descriptor.rl_file->lock_table[0].length = region_end - region_start;
-                                    descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
-                                    descriptor.rl_file->lock_table[0].next_lock = -1;
-                                    descriptor.rl_file->lock_table[0].owners_count = 1;
-                                    descriptor.rl_file->lock_table[0].starting_offset = region_start;
-                                    descriptor.rl_file->lock_table[0].type = F_RDLCK;
-                                    ok("rd lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
-                                    descriptor.rl_file->lock_table[0].readers = 1;
-                                    descriptor.rl_file->lock_table[0].writers = 0;
-                                    pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
-                                    pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                    return 0;
-
+                            if (descriptor.rl_file->first_lock == -2)
+                            {
+                                descriptor.rl_file->first_lock = 0;
+                                descriptor.rl_file->lock_table[0].length = region_end - region_start;
+                                descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
+                                descriptor.rl_file->lock_table[0].next_lock = -1;
+                                descriptor.rl_file->lock_table[0].owners_count = 1;
+                                descriptor.rl_file->lock_table[0].starting_offset = region_start;
+                                descriptor.rl_file->lock_table[0].type = F_RDLCK;
+                                ok("rd lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
+                                descriptor.rl_file->lock_table[0].readers = 1;
+                                descriptor.rl_file->lock_table[0].writers = 0;
+                                pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                return 0;
                             }
 
                             current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
@@ -1662,13 +1650,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                             current_lock.owners_count--;
                             if (current_lock.type == F_RDLCK)
-                        {
-                            current_lock.readers--;
-                        }
-                        else
-                        {
-                            current_lock.writers--;
-                        }
+                            {
+                                current_lock.readers--;
+                            }
+                            else
+                            {
+                                current_lock.writers--;
+                            }
                             int index = rl_lock_check(&current_lock); // Si le verrou devient vide, ça le "supprime" et retourne l'indice du verrou d'après. -3 si pas vide
                             if (index != -3)
                             {
@@ -1777,8 +1765,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             region_end = lock->l_len + lock->l_start;
             has_next = TRUE;
             while (has_next)
-            { 
-               
+            {
+
                 if (current_lock.starting_offset + current_lock.length < lock->l_start)
                 {
                     if (current_lock.next_lock >= 0)
@@ -1796,7 +1784,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
 
                                 descriptor.rl_file->lock_table[i].owners_count = 1;
                                 descriptor.rl_file->lock_table[i].lock_owners[0] = lock_owner;
-                                descriptor.rl_file->lock_table[i].writers+=1;
+                                descriptor.rl_file->lock_table[i].writers += 1;
                                 for (int j = 0; j < NB_LOCKS; j++)
                                 {
                                     if (descriptor.rl_file->lock_table[j].next_lock == -1)
@@ -1823,36 +1811,35 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                 {
                     if (current_lock.type == F_RDLCK)
                     {
-                       
+
                         if (current_lock.owners_count > 1)
                         {
                             while (current_lock.readers > 0)
                             {
-                                
+
                                 debug("waiting for readers to release the lock\n");
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                 pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
                                 debug("readers released the lock\n");
-
-                                }
-                               
-                            
-                            if(descriptor.rl_file->first_lock ==-2){
-                                    descriptor.rl_file->first_lock = 0;
-                                    descriptor.rl_file->lock_table[0].length = region_end - region_start;
-                                    descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
-                                    descriptor.rl_file->lock_table[0].next_lock = -1;
-                                    descriptor.rl_file->lock_table[0].owners_count = 1;
-                                    descriptor.rl_file->lock_table[0].starting_offset = region_start;
-                                    descriptor.rl_file->lock_table[0].type = F_WRLCK;
-                                    ok("wr lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
-                                    descriptor.rl_file->lock_table[0].readers = 1;
-                                    descriptor.rl_file->lock_table[0].writers = 0;
-                                    pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
-                                    pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                    return 0;
                             }
-                             current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
+
+                            if (descriptor.rl_file->first_lock == -2)
+                            {
+                                descriptor.rl_file->first_lock = 0;
+                                descriptor.rl_file->lock_table[0].length = region_end - region_start;
+                                descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
+                                descriptor.rl_file->lock_table[0].next_lock = -1;
+                                descriptor.rl_file->lock_table[0].owners_count = 1;
+                                descriptor.rl_file->lock_table[0].starting_offset = region_start;
+                                descriptor.rl_file->lock_table[0].type = F_WRLCK;
+                                ok("wr lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
+                                descriptor.rl_file->lock_table[0].readers = 1;
+                                descriptor.rl_file->lock_table[0].writers = 0;
+                                pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                return 0;
+                            }
+                            current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
                         }
                         else
                         { // Si il n'y a qu'un owner et que c'est le thread courant, on pourra poser un verrou par dessus.
@@ -1877,14 +1864,14 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 info("lock readers : %d\n", current_lock.readers);
                                 while (current_lock.readers > 0)
                                 {
-                                info("waiting for readers to release the lock\n");
-                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
-                                info("released");
-
+                                    info("waiting for readers to release the lock\n");
+                                    pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                    pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
+                                    info("released");
                                 }
-                            
-                            if(descriptor.rl_file->first_lock ==-2){
+
+                                if (descriptor.rl_file->first_lock == -2)
+                                {
                                     descriptor.rl_file->first_lock = 0;
                                     descriptor.rl_file->lock_table[0].length = region_end - region_start;
                                     descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
@@ -1898,9 +1885,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                     pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
                                     pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                     return 0;
-                            }
-                            current_lock = descriptor.rl_file->lock_table[descriptor .rl_file->first_lock];
-
+                                }
+                                current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
                             }
                         }
                     }
@@ -1928,29 +1914,28 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         if (!same_owner)
                         {
                             info("current lock writer : %d\n", current_lock.writers);
-                           while (current_lock.writers > 0)
+                            while (current_lock.writers > 0)
                             {
-                                
+
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                 pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
-                                info("released");                                
-                                
+                                info("released");
                             }
-                            if(descriptor.rl_file->first_lock ==-2){
-                                    descriptor.rl_file->first_lock = 0;
-                                    descriptor.rl_file->lock_table[0].length = region_end - region_start;
-                                    descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
-                                    descriptor.rl_file->lock_table[0].next_lock = -1;
-                                    descriptor.rl_file->lock_table[0].owners_count = 1;
-                                    descriptor.rl_file->lock_table[0].starting_offset = region_start;
-                                    descriptor.rl_file->lock_table[0].type = F_WRLCK;
-                                    ok("wr lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
-                                    descriptor.rl_file->lock_table[0].readers = 1;
-                                    descriptor.rl_file->lock_table[0].writers = 0;
-                                    pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
-                                    pthread_mutex_unlock(&(descriptor.rl_file->mutex));
-                                    return 0;
-
+                            if (descriptor.rl_file->first_lock == -2)
+                            {
+                                descriptor.rl_file->first_lock = 0;
+                                descriptor.rl_file->lock_table[0].length = region_end - region_start;
+                                descriptor.rl_file->lock_table[0].lock_owners[0] = lock_owner;
+                                descriptor.rl_file->lock_table[0].next_lock = -1;
+                                descriptor.rl_file->lock_table[0].owners_count = 1;
+                                descriptor.rl_file->lock_table[0].starting_offset = region_start;
+                                descriptor.rl_file->lock_table[0].type = F_WRLCK;
+                                ok("wr lock granted [ start = %ld | length = %ld ]\n", region_start, region_end - region_start);
+                                descriptor.rl_file->lock_table[0].readers = 1;
+                                descriptor.rl_file->lock_table[0].writers = 0;
+                                pthread_cond_broadcast(&(descriptor.rl_file->lock_table[0].cond));
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                return 0;
                             }
                             current_lock = descriptor.rl_file->lock_table[descriptor.rl_file->first_lock];
                         }
@@ -2002,13 +1987,13 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 current_lock.lock_owners[k] = current_lock.lock_owners[k + 1];
                             current_lock.owners_count--;
                             if (current_lock.type == F_RDLCK)
-                        {
-                            current_lock.readers--;
-                        }
-                        else
-                        {
-                            current_lock.writers--;
-                        }
+                            {
+                                current_lock.readers--;
+                            }
+                            else
+                            {
+                                current_lock.writers--;
+                            }
                             int index = rl_lock_check(&current_lock);
 
                             if (index != -3)
@@ -2127,7 +2112,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
             previous_index[1] = descriptor.rl_file->first_lock;
             while (has_next && unlockable == 0)
             {
-                
+
                 if (current_lock.starting_offset <= lock->l_start && current_lock.starting_offset + current_lock.length >= lock->l_start + lock->l_len)
                 { // Si on a un lock qui englobe l'intervalle a unlock
                     for (size_t j = 0; j < current_lock.owners_count; j++)
@@ -2187,8 +2172,16 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         {
                             current_lock.writers--;
                         }
+                        if (current_lock.type == F_RDLCK)
+                        {
+                            current_lock.readers--;
+                        }
+                        else
+                        {
+                            current_lock.writers--;
+                        }
                         int index = rl_lock_check(&current_lock);
-                       
+
                         if (index != -3)
                         {
                             if (previous_index[0] == -3)
@@ -2293,10 +2286,10 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                     descriptor.rl_file->lock_table[i].lock_owners[0].thread_id = getpid();
                                     descriptor.rl_file->lock_table[i].lock_owners[0].file_descriptor = descriptor.file_descriptor;
                                     current_lock.type = lock_type;
-                                    if(lock_type == F_RDLCK)
-                                    descriptor.rl_file->lock_table[i].readers+=1;
+                                    if (lock_type == F_RDLCK)
+                                        descriptor.rl_file->lock_table[i].readers += 1;
                                     else
-                                    descriptor.rl_file->lock_table[i].writers+=1;
+                                        descriptor.rl_file->lock_table[i].writers += 1;
                                     if (previous_index[0] >= 0 && descriptor.rl_file->lock_table[previous_index[0]].starting_offset <= left_lock_start)
                                     { // On le met au bon endroit dans la liste chainée
                                         // Si le dernier verrou observé est le dernier de la liste chainée
@@ -2389,10 +2382,10 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                     descriptor.rl_file->lock_table[i].lock_owners[0].thread_id = getpid();
                                     descriptor.rl_file->lock_table[i].lock_owners[0].file_descriptor = descriptor.file_descriptor;
                                     current_lock.type = lock_type;
-                                    if(lock_type == F_RDLCK)
-                                    descriptor.rl_file->lock_table[i].readers+=1;
+                                    if (lock_type == F_RDLCK)
+                                        descriptor.rl_file->lock_table[i].readers += 1;
                                     else
-                                    descriptor.rl_file->lock_table[i].writers+=1;
+                                        descriptor.rl_file->lock_table[i].writers += 1;
                                     if (previous_index[0] >= 0 && descriptor.rl_file->lock_table[previous_index[0]].starting_offset <= left_lock_start)
                                     { // On le met au bon endroit dans la liste chainée
                                         // Si le dernier verrou observé est le dernier de la liste chainée
@@ -2514,7 +2507,7 @@ rl_descriptor rl_dup(rl_descriptor descriptor)
 pid_t rl_fork()
 {
     info("forking\n");
-    
+
     pid_t pid = fork();
     if (pid == 0)
     {
@@ -2550,7 +2543,8 @@ pid_t rl_fork()
     {
         error("fork() failed\n");
     }
-    else{
+    else
+    {
         // On est dans le père
         // On attend que le fils ait fini d'ajouter les lock owners
         struct sigaction sa;
@@ -2559,12 +2553,8 @@ pid_t rl_fork()
         sa.sa_flags = 0;
         sigaction(SIGUSR1, &sa, NULL);
         pause();
-        
-        
-     
     }
- 
- 
+
     return pid;
 }
 
