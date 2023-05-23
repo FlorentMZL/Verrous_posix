@@ -2206,7 +2206,7 @@ ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
-        rl_lock current_lock = current_lock;
+        rl_lock current_lock = descriptor.rl_file->lock_table[i];
         // Si le lock est de type F_WRLCK et que le thread courant est dans la liste des lock owners, alors on peut écrire
         if (current_lock.type == F_WRLCK)
         {
@@ -2246,7 +2246,7 @@ ssize_t rl_read(rl_descriptor descriptor, void *buffer, size_t count)
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
-        rl_lock current_lock = current_lock;
+        rl_lock current_lock = descriptor.rl_file->lock_table[i];
         // Si le lock est de type F_RDLCK et que le thread courant est dans la liste des lock owners, alors on peut lire
         if (current_lock.type == F_RDLCK)
         {

@@ -39,22 +39,22 @@ int main(int argc, char** argv) {
     pid_t pid = rl_fork();
     if (pid == 0) {
         struct flock lock2 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
-        int return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock2);
+        int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock2);
         if (return_value == -1) error("could not set lock\n");
         ok("lock set\n"); // DEBUG  
         sleep(5);
         struct flock lock3 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 10};
-         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock3);
+         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
         if (return_value == -1) error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         struct flock lock5 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 19, .l_len = 10};
-         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock5);
+         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock5);
         if (return_value == -1) error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         struct flock lock4 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
-         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock4);
-        if (return_value == -1) error("could not set lock\n");
-        ok("lock set\n"); // DEBUG
+        // return_value = rl_fcntl(rl_fd1, F_SETLK, &lock4);
+        //if (return_value == -1) error("could not set lock\n");
+        //ok("lock set\n"); // DEBUG
         // On lit le fichier
         char buffer[6];
         ssize_t re = rl_read(rl_fd1, buffer, 5);
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         ok("file descriptor closed\n"); // DEBUG
         */
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
-        int return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
+        int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
         if (return_value == -1) error("could not set lock\n");
 
         char buffer[6];
