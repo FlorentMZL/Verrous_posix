@@ -67,10 +67,12 @@ static int rl_lock_check(rl_lock *lock)
         lock->length = -1;
         lock->type = -1;
         lock->next_lock = -2;
+        
         return nxt;
     }
     else
     {
+      
         return -3;
     }
 }
@@ -377,9 +379,9 @@ int rl_close(rl_descriptor rl_fd)
                             current_lock.writers--;
                         }
                 int index = rl_lock_check(&current_lock);
-                if (index != -3)
+                if (index != -3){
                     debug("index is not -3\n");
-                {
+                
                     if (previous_index[0] == -3)
                     { // Si on doit supprimer le premier verrou dans la table
                         if (index == -1)
@@ -414,6 +416,7 @@ int rl_close(rl_descriptor rl_fd)
                 // Si il y a un prochain verrou
                 if (current_lock.next_lock >= 0)
                 {
+                    info("ici\n");
                     current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
                     previous_index[0] = previous_index[1];
                     previous_index[1] = current_lock.next_lock;
