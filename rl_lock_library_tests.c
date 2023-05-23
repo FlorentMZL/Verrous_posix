@@ -57,6 +57,12 @@ void *write_thread(void *arg)
     pthread_exit(NULL);
 }
 
+
+
+
+
+
+
 int test_1_read_then_write()
 {
     info("starting test 1: read then write\n");
@@ -106,9 +112,9 @@ int test_1_read_then_write()
     return 0;
 }
 
-int test_2_read_then_write_blocking()
+int test_2_fusion_division_lock()
 {
-    info("starting test 2: read then write - blocking\n");
+    info("starting test 2: fusion lock\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -116,33 +122,69 @@ int test_2_read_then_write_blocking()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
+    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};    
+    int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
+    if (return_value == -1)
+        error("could not set lock\n");
+    ok("lock set\n"); // DEBUG
+
+    struct flock lock2 = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 15};
+    return_value = rl_fcntl(rl_fd1, F_SETLK, &lock2);
+    if (return_value == -1)
+        error("could not set lock\n");
+    ok("lock set\n"); // DEBUG
+
+    struct flock lock3 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 10, .l_len = 5};
+    return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
+    if (return_value == -1)
+        error("could not set lock\n");
+    ok("lock set\n"); // DEBUG
+
+    char buffer[6];
+    ssize_t bytes_written = rl_read(rl_fd1, buffer, 5);
+    buffer[5] = '\0';
+    if (bytes_written == -1)
+    {
+        error("could not write file\n");
+    }
+    else
+    {
+        ok("read : = %s\n", buffer); // DEBUG
+    }
+    char buffer2[14];
+    bytes_written = rl_read(rl_fd1, buffer2, 13);
+    buffer2[13] = '\0';
+    if (bytes_written == -1)
+    {
+        error("could not read file\n");
+    }
+    else
+    {
+        ok("read : = %s\n", buffer2); // DEBUG
+    }
+    rl_close(rl_fd1);
+    return 1; 
+}
+
+int test_3_fork()
+{
+    info("starting test 3: fork\n");
+    rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
+    if (rl_fd1.file_descriptor < 0)
+    {
+        error("couldn't open file\n");
+        return -1;
+    }
+    debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
+
+    struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
+    int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
+    if (return_value == -1)
+        error("could not set lock\n");
+    ok("lock set\n"); // DEBUG
     int pid = rl_fork();
     if (pid == 0)
     {
-        struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
-        int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
-        if (return_value == -1)
-            error("could not set lock\n");
-        ok("lock set\n"); // DEBUG
-        ssize_t bytes_written = rl_write(rl_fd2, "hello, world!", strlen("hello, world!"));
-        if (bytes_written == -1)
-        {
-            error("could not write file\n");
-        }
-        else
-        {
-            ok("bytes_written = %ld\n", bytes_written); // DEBUG
-        }
-        rl_close(rl_fd2);
-    }
-    else if (pid > 0)
-    {
-        struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
-        int return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
-        if (return_value == -1)
-            error("could not set lock\n");
-        ok("lock set\n"); // DEBUG
         char buffer[N + 1];
         ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
         if (bytes_read == -1)
@@ -153,67 +195,26 @@ int test_2_read_then_write_blocking()
         {
             ok("buffer = '%s'\n", buffer); // DEBUG
         }
-        sleep(10);
-        lock.l_type = F_UNLCK;
-        return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
-        if (return_value == -1)
-            error("could not set lock\n");
-        ok("lock set\n"); // DEBUG
-        rl_close(rl_fd1);
+       
+        return 0;
     }
     else
     {
-        return -1;
-    }
-    return 0;
-}
-
-int test_3_write_then_read()
-{
-    info("starting test 3: write then read\n");
-    rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
-    if (rl_fd1.file_descriptor < 0)
-    {
-        error("couldn't open file\n");
-        return -1;
-    }
-    debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-
-    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
-    int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
-    if (return_value == -1)
-        error("could not set lock\n");
-    ok("lock set\n"); // DEBUG
-
-    char buffer[N + 1];
-    ssize_t bytes_written = rl_write(rl_fd1, "hello, world!", strlen("hello, world!"));
-    if (bytes_written == -1)
-    {
-        error("could not write file\n");
-    }
-    else
-    {
-        ok("bytes_written = %ld\n", bytes_written); // DEBUG
-    }
-
-    lock.l_type = F_UNLCK;
-    return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
-    if (return_value == -1)
-        error("could not set lock\n");
-    ok("lock set\n"); // DEBUG
-
-    trace("WE CAN READ HERE BECAUSE THERE ARE NO LOCKS ON THE FILE\n");
-    ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
-    if (bytes_read == -1)
-    {
-        error("could not read file\n");
-    }
-    else
-    {
-        ok("buffer = '%s'\n", buffer); // DEBUG
-    }
-
+        char buffer[N + 1];
+        lseek(rl_fd1.file_descriptor, 0, SEEK_SET);
+        ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
+        if (bytes_read == -1)
+        {
+            error("could not read file\n");
+        }
+        else
+        {
+            ok("buffer = '%s'\n", buffer); // DEBUG
+        }
+        wait(NULL);
     rl_close(rl_fd1);
+    }
+    
     return 0;
 }
 
@@ -567,9 +568,9 @@ int main(int argc, char* argv[])
             case 1:
                 return test_1_read_then_write(); 
             case 2:
-                return test_2_read_then_write_blocking();
+                return test_2_fusion_division_lock();
             case 3:
-                return test_3_write_then_read();
+                return test_3_fork();
             case 4:
                 return test_4_write_then_read_blocking();
             case 5:
@@ -594,10 +595,10 @@ int main(int argc, char* argv[])
         pthread_create(&thread, NULL, (void*) &test_1_read_then_write, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_2_read_then_write_blocking, NULL);
+        pthread_create(&thread, NULL, (void*) &test_2_fusion_division_lock, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_3_write_then_read, NULL);
+        pthread_create(&thread, NULL, (void*) &test_3_fork, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void*) &test_4_write_then_read_blocking, NULL);
