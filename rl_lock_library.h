@@ -24,7 +24,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 3
+#define LOG_LEVEL 2
 
 extern int memory_allocations;
 
@@ -178,6 +178,8 @@ typedef struct
     int first_lock;
     // Tableau des verrous - OK (?)
     rl_lock lock_table[NB_LOCKS];
+    // Nombre de fois ou le même fichier a été ovuert
+    int open_instances;
 } rl_open_file;
 
 typedef struct
