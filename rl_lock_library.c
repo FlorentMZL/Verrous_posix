@@ -2121,6 +2121,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
 
 rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor)
 {
+    info("duplicating descriptor from %d\n", descriptor);
     // On duplique le descripteur de fichier
     rl_descriptor new_descriptor;
     // Nouveau lock owner
@@ -2138,7 +2139,6 @@ rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor)
                 rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
                 if (current_lock_owner.thread_id == getpid())
                 {
-
                     debug("found lock owner at index %ld\n", j); // DEBUG
                     // On ajoute le nouveau lock owner
                     current_lock.lock_owners[owners_count] = new_owner;
@@ -2152,12 +2152,46 @@ rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor)
     // On retourne le nouveau descripteur de fichier
     new_descriptor.file_descriptor = new_file_descriptor;
     new_descriptor.rl_file = descriptor.rl_file;
+    ok("duplicated descriptor to %d\n", new_file_descriptor);
     return new_descriptor;
 }
 
 rl_descriptor rl_dup(rl_descriptor descriptor)
 {
-    return rl_dup2(descriptor, dup(descriptor.file_descriptor));
+    info("duplicating descriptor from %d\n", descriptor);
+    // On duplique le descripteur de fichier
+    rl_descriptor new_descriptor;
+    int new_file_descriptor = dup(descriptor.file_descriptor);
+    // Nouveau lock owner
+    rl_lock_owner new_owner = {.thread_id = getpid(), .file_descriptor = new_file_descriptor};
+    // On cherche le lock owner dans la liste des lock owners
+    for (size_t i = 0; i < NB_LOCKS; i++)
+    {
+        rl_lock current_lock = descriptor.rl_file->lock_table[i];
+        if (current_lock.next_lock != -2)
+        {
+            size_t owners_count = current_lock.owners_count;
+            info("owners count: %ld\n", owners_count); // DEBUG
+            for (size_t j = 0; j < current_lock.owners_count; j++)
+            {
+                rl_lock_owner current_lock_owner = current_lock.lock_owners[j];
+                if (current_lock_owner.thread_id == getpid())
+                {
+                    debug("found lock owner at index %ld\n", j); // DEBUG
+                    // On ajoute le nouveau lock owner
+                    current_lock.lock_owners[owners_count] = new_owner;
+                    current_lock.owners_count += 1;
+                    debug("added new lock owner\n"); // DEBUG
+                    break;
+                }
+            }
+        }
+    }
+    // On retourne le nouveau descripteur de fichier
+    new_descriptor.file_descriptor = new_file_descriptor;
+    new_descriptor.rl_file = descriptor.rl_file;
+    ok("duplicated descriptor to %d\n", new_file_descriptor);
+    return new_descriptor;
 }
 
 pid_t rl_fork()
