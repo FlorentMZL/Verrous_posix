@@ -33,7 +33,7 @@ extern int memory_allocations;
 #define debug(...)                                                                          \
     if (LOG_LEVEL >= 3)                                                                     \
     {                                                                                       \
-        printf("\033[0;33m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;33m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\033[0;37m");                                                               \
     }
@@ -41,7 +41,7 @@ extern int memory_allocations;
 #define debug_memory(...)                                                                   \
     if (LOG_LEVEL >= 4)                                                                     \
     {                                                                                       \
-        printf("\033[0;33m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;33m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\033[0;37m");                                                               \
     }
@@ -49,7 +49,7 @@ extern int memory_allocations;
 #define info(...)                                                                           \
     if (LOG_LEVEL >= 1)                                                                     \
     {                                                                                       \
-        printf("\033[0;34m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;34m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\033[0;37m");                                                               \
     }
@@ -57,21 +57,21 @@ extern int memory_allocations;
 #define ok(...)                                                                             \
     if (LOG_LEVEL >= 1)                                                                     \
     {                                                                                       \
-        printf("\033[0;32m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;32m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\033[0;37m");                                                               \
     }
 
 #define error(...)                                                                          \
     {                                                                                       \
-        printf("\033[0;31m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;31m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                            \
     }
 
 #define test(...)                                                                           \
     {                                                                                       \
-        printf("\033[0;32m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf("\033[0;32m[#%ld] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
         printf("\033[0;37m");                                                               \
     }
@@ -112,7 +112,7 @@ extern int memory_allocations;
 #define trace(...)                                                                                         \
     if (LOG_LEVEL >= 2)                                                                                    \
     {                                                                                                      \
-        printf("\033[0;35m[#%d] %s @ %03d [%s]: %s", getpid(), __FILE__, __LINE__, __func__, __VA_ARGS__); \
+        printf("\033[0;35m[#%ld] %s @ %03d [%s]: %s", getpid(), __FILE__, __LINE__, __func__, __VA_ARGS__); \
     }
 
 // Une macro pour afficher les propriétés d'un lock
