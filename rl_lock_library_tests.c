@@ -11,7 +11,6 @@ int main(int argc, char** argv) {
     if (rl_fd1.file_descriptor < 0) { error("couldn't open file\n"); return -1; }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
     
-    trace("2\n");
     rl_descriptor rl_fd2 = rl_dup(rl_fd1); 
 
     /*
@@ -35,7 +34,6 @@ int main(int argc, char** argv) {
     return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
     if (return_value == -1) error("could not set lock\n");
 */
-    trace("1");
     pid_t pid = rl_fork();
     if (pid == 0) {
         struct flock lock2 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
