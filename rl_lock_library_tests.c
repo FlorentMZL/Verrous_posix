@@ -64,15 +64,17 @@ void* do_stuff(void* arg)
             error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         sleep(5);
-        struct flock lock3 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 10};
+        struct stat statbuf;
+        fstat(rl_fd1.file_descriptor, &statbuf);
+        debug("size of file = %ld\n", statbuf.st_size); // DEBUG
+        struct flock lock3 = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 0};
         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
         if (return_value == -1)
             error("could not set lock\n");
         ok("lock set\n"); // DEBUG
-        struct flock lock5 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 19, .l_len = 10};
-        return_value = rl_fcntl(rl_fd1, F_SETLK, &lock5);
-        if (return_value == -1)
-            error("could not set lock\n");
+        struct flock lock5 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 8, .l_len = 2};
+         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock5);
+        if (return_value == -1) error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         // struct flock lock4 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
         // return_value = rl_fcntl(rl_fd1, F_SETLK, &lock4);
