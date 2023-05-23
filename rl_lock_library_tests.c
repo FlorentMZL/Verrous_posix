@@ -524,7 +524,6 @@ int test_9_concurrent_reads_and_writes_with_forks()
         rl_close(rl_fd1);
         exit(0);
     }
-
     int pid2 = rl_fork();
     if (pid2 == 0)
     {
