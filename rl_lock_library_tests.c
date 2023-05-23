@@ -57,12 +57,6 @@ void *write_thread(void *arg)
     pthread_exit(NULL);
 }
 
-
-
-
-
-
-
 int test_1_read_then_write()
 {
     test("starting test...\n");
@@ -82,7 +76,7 @@ int test_1_read_then_write()
 
     char buffer[N + 1];
     ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
-    buffer[N + 1] = '\0'; 
+    buffer[N + 1] = '\0';
     if (bytes_read == -1)
     {
         error("could not read file\n");
@@ -123,7 +117,7 @@ int test_2_fusion_division_lock()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};    
+    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
     int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
     if (return_value == -1)
         error("could not set lock\n");
@@ -164,7 +158,7 @@ int test_2_fusion_division_lock()
         ok("read : = %s\n", buffer2); // DEBUG
     }
     rl_close(rl_fd1);
-    return 1; 
+    return 1;
 }
 
 int test_3_fork()
@@ -197,7 +191,7 @@ int test_3_fork()
         {
             ok("buffer = '%s'\n", buffer); // DEBUG
         }
-       
+
         return 0;
     }
     else
@@ -214,9 +208,9 @@ int test_3_fork()
             ok("buffer = '%s'\n", buffer); // DEBUG
         }
         wait(NULL);
-    rl_close(rl_fd1);
+        rl_close(rl_fd1);
     }
-    
+
     return 0;
 }
 
@@ -235,12 +229,12 @@ int test_4_promoting()
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
-    struct flock lock2 ={.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
+    struct flock lock2 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
     return_value = rl_fcntl(rl_fd1, F_SETLK, &lock2);
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
-    char buffer2[13]; 
+    char buffer2[13];
     int bytes_written = rl_read(rl_fd1, buffer2, 13);
     buffer2[13] = '\0';
     if (bytes_written == -1)
@@ -252,8 +246,7 @@ int test_4_promoting()
         ok("read : = %s\n", buffer2); // DEBUG
     }
     rl_close(rl_fd1);
-    return 0; 
-
+    return 0;
 }
 
 int test_5_concurrent_reads()
@@ -637,37 +630,30 @@ int main(int argc, char *argv[])
     if (argc > 1)
     {
         int test_number = atoi(argv[1]);
-        switch (test_number) {
-            case 1:
-                return test_1_read_then_write(); 
-            case 2:
-                return test_2_fusion_division_lock();
-            case 3:
-                return test_3_fork();
-            case 4:
-                return test_4_promoting();
-            case 5:
-                return test_5_concurrent_reads();
-            case 6:
-                return test_6_concurrent_writes();
-            case 7:
-                return test_7_lock_upgrade();
-            case 8:
-                return test_8_concurrent_reads_and_writes_with_threads();
-            case 9:
-                return test_9_concurrent_reads_and_writes_with_forks();
-            default:
-                printf("Invalid test number\n");
-                break;
-        }
-        if (r == 0)
+        switch (test_number)
         {
-            test("test passed successfully\n");
-        } else 
-        {
-            error("test failed\n");
+        case 1:
+            return test_1_read_then_write();
+        case 2:
+            return test_2_fusion_division_lock();
+        case 3:
+            return test_3_fork();
+        case 4:
+            return test_4_promoting();
+        case 5:
+            return test_5_concurrent_reads();
+        case 6:
+            return test_6_concurrent_writes();
+        case 7:
+            return test_7_lock_upgrade();
+        case 8:
+            return test_8_concurrent_reads_and_writes_with_threads();
+        case 9:
+            return test_9_concurrent_reads_and_writes_with_forks();
+        default:
+            printf("Invalid test number\n");
+            break;
         }
-        return r;
     }
     else
     {
@@ -678,13 +664,13 @@ int main(int argc, char *argv[])
         pthread_create(&thread, NULL, (void *)&test_1_read_then_write, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_2_fusion_division_lock, NULL);
+        pthread_create(&thread, NULL, (void *)&test_2_fusion_division_lock, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_3_fork, NULL);
+        pthread_create(&thread, NULL, (void *)&test_3_fork, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_4_promoting, NULL);
+        pthread_create(&thread, NULL, (void *)&test_4_promoting, NULL);
         pthread_join(thread, NULL);
         // Run all tests sequentially
         pthread_create(&thread, NULL, (void *)&test_5_concurrent_reads, NULL);
