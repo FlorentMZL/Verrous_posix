@@ -164,7 +164,7 @@ static int rl_path(char *smo_path, int fd, struct stat *fstats, size_t max_size)
 
 /**
  * La fonction qui vérifie si un thread est toujours en vie
-*/
+ */
 static BOOLEAN rl_is_thread_alive(pid_t pid)
 {
     if (kill(pid, 0) == 0)
@@ -458,9 +458,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
         fstat(descriptor.file_descriptor, &statbuf);
         lockLen = statbuf.st_size - lock->l_start;
     }
-    info("locklen : %ld\n", lockLen);
+    debug("locklen : %ld\n", lockLen);
     pthread_mutex_lock(&(descriptor.rl_file->mutex));
-
     rl_lock_owner lock_owner = {.thread_id = getpid(), .file_descriptor = descriptor.file_descriptor};
     switch (command)
     {
@@ -2410,11 +2409,16 @@ pid_t rl_fork()
 
 ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
 {
+    if (descriptor.rl_file->first_lock == -2)
+    {
+        // Si le fichier n'a pas de lock, on écrit
+        return write(descriptor.file_descriptor, buffer, count);
+    }
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
         rl_lock current_lock = descriptor.rl_file->lock_table[i];
-        //info("longueur : %ld\n", current_lock.length); // DEBUG
+        debug("longueur : %ld\n", current_lock.length); // DEBUG
         long int lengthCurrent = current_lock.length;
         if (lengthCurrent == 0)
         {
@@ -2434,7 +2438,7 @@ ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
                     // On vérifie que la position du curseur est bien dans l'intervalle
                     if (lseek(descriptor.file_descriptor, 0, SEEK_CUR) < current_lock.starting_offset || lseek(descriptor.file_descriptor, 0, SEEK_CUR) + count > current_lock.starting_offset + lengthCurrent)
                     {
-                        info("bornes : %ld %ld %ld\n", lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
+                        debug("bornes : %ld %ld %ld\n", lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
                         break;
                     }
                     // On vérifie que la taille du buffer est bien dans l'intervalle
@@ -2455,6 +2459,11 @@ ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
 
 ssize_t rl_read(rl_descriptor descriptor, void *buffer, size_t count)
 {
+    if (descriptor.rl_file->first_lock == -2)
+    {
+        // Si le fichier n'a pas de lock, on lit
+        return read(descriptor.file_descriptor, buffer, count);
+    }
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
@@ -2498,4 +2507,71 @@ int rl_init_library()
     // On initialise la liste des fichiers ouverts
     rl_all_files.files_count = 0;
     return 0;
+}
+
+int rl_execl(const char *path, const char *arg, ...)
+{
+    const char *smo_path = "/rl_smo";
+    int smo_fd = shm_open(smo_path, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+    BOOLEAN smo_was_on_disk = FALSE;
+    if (smo_fd == -1 && errno == EEXIST)
+    {
+        // Le SMO existe déjà, on l'ouvre de nouveau sans O_CREAT
+        smo_fd = shm_open(smo_path, O_RDWR, S_IRUSR | S_IWUSR);
+        if (smo_fd == -1)
+        {
+            error("couldn't open shared memory object\n");
+            close(smo_fd);
+            return -1;
+        }
+        ok("shared memory object exists, opened with fd = %d\n", smo_fd); // DEBUG
+        smo_was_on_disk = TRUE;
+    }
+    else if (smo_fd == -1)
+    { // Le SMO n'existe pas et on n'a pas pu le créer
+        error("couldn't create shared memory object\n");
+        close(smo_fd);
+        return -1;
+    }
+    if (!smo_was_on_disk)
+    {                                                                                                                                                      // Le SMO n'existait pas, on le crée et on le tronque à la taille de la structure rl_open_file
+        ok("shared memory object doesn't exist, creating & truncating to %ld\n", sizeof(rl_all_files) + rl_all_files.files_count * sizeof(rl_descriptor)); // DEBUG
+        ftruncate(smo_fd, sizeof(rl_all_files) + rl_all_files.files_count * sizeof(rl_descriptor));
+    }
+    debug("mapping shared memory object in memory\n");
+    // Map le fichier en mémoire - là, on a un pointeur sur la structure rl_open_file qui est mappée en mémoire à travers le SMO
+    void *mmap_ptr = mmap(NULL, sizeof(rl_all_files) + rl_all_files.files_count * sizeof(rl_descriptor), PROT_READ | PROT_WRITE, MAP_SHARED, smo_fd, 0);
+    if (mmap_ptr == (void *)MAP_FAILED)
+    {
+        error("couldn't map shared memory object in memory\n");
+        return -1;
+    }
+    memcpy(mmap_ptr, &rl_all_files, sizeof(rl_all_files));
+    for (size_t i = 0; i < rl_all_files.files_count; i++)
+    {
+        memcpy(mmap_ptr + sizeof(rl_all_files) + i * sizeof(rl_descriptor), &rl_all_files.open_files[i], sizeof(rl_descriptor));
+    }
+    // On ferme le SMO
+    close(smo_fd);
+    // On crée un tableau de char * pour les arguments
+    va_list args;
+    va_start(args, arg);
+    int argc = 1;
+    while (va_arg(args, char *) != NULL)
+    {
+        argc++;
+    }
+    va_end(args);
+    // On crée un tableau de char * pour les arguments
+    char *argv[argc + 1];
+    argv[0] = (char *)arg;
+    va_start(args, arg);
+    for (size_t i = 1; i < argc; i++)
+    {
+        argv[i] = va_arg(args, char *);
+    }
+    va_end(args);
+    argv[argc] = NULL;
+    // On exécute le programme
+    return execv(path, argv);
 }

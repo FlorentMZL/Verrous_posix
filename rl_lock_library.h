@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <stdarg.h>
 
 #include <sys/types.h> /* For types    */
 #include <sys/stat.h>  /* For mode constants   */
@@ -24,7 +26,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 5
+#define LOG_LEVEL 2
 
 extern int memory_allocations;
 
@@ -233,5 +235,10 @@ ssize_t rl_read(rl_descriptor, void *, size_t);
  * La fonction qui initialise la librairie
  */
 int rl_init_library();
+
+/**
+ * Famille exec
+ */
+int rl_execl(const char *, const char *, ...);
 
 #endif
