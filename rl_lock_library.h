@@ -6,8 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <unistd.h>
 #include <stdarg.h>
+#include <signal.h>
 
 #include <sys/types.h> /* For types    */
 #include <sys/stat.h>  /* For mode constants   */
