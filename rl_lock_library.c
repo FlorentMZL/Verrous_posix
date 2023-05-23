@@ -459,9 +459,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
         fstat(descriptor.file_descriptor, &statbuf);
         lockLen = statbuf.st_size - lock->l_start;
     }
-    info("locklen : %ld\n", lockLen);
+    debug("locklen : %ld\n", lockLen);
     pthread_mutex_lock(&(descriptor.rl_file->mutex));
-
     rl_lock_owner lock_owner = {.thread_id = getpid(), .file_descriptor = descriptor.file_descriptor};
     switch (command)
     {
@@ -2387,11 +2386,16 @@ pid_t rl_fork()
 
 ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
 {
+    if (descriptor.rl_file->first_lock == -2)
+    {
+        // Si le fichier n'a pas de lock, on écrit
+        return write(descriptor.file_descriptor, buffer, count);
+    }
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
         rl_lock current_lock = descriptor.rl_file->lock_table[i];
-        info("longueur : %ld\n", current_lock.length); // DEBUG
+        debug("longueur : %ld\n", current_lock.length); // DEBUG
         long int lengthCurrent = current_lock.length;
         if (lengthCurrent == 0)
         {
@@ -2411,7 +2415,7 @@ ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
                     // On vérifie que la position du curseur est bien dans l'intervalle
                     if (lseek(descriptor.file_descriptor, 0, SEEK_CUR) < current_lock.starting_offset || lseek(descriptor.file_descriptor, 0, SEEK_CUR) + count > current_lock.starting_offset + lengthCurrent)
                     {
-                        info("bornes : %ld %ld %ld\n", lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
+                        debug("bornes : %ld %ld %ld\n", lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
                         break;
                     }
                     // On vérifie que la taille du buffer est bien dans l'intervalle
@@ -2432,6 +2436,11 @@ ssize_t rl_write(rl_descriptor descriptor, const void *buffer, size_t count)
 
 ssize_t rl_read(rl_descriptor descriptor, void *buffer, size_t count)
 {
+    if (descriptor.rl_file->first_lock == -2)
+    {
+        // Si le fichier n'a pas de lock, on lit
+        return read(descriptor.file_descriptor, buffer, count);
+    }
     // On parcourt la liste des locks du fichier
     for (size_t i = 0; i < NB_LOCKS; i++)
     {
