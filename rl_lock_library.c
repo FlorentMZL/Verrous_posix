@@ -301,14 +301,14 @@ rl_descriptor rl_open(const char *path, int flags, mode_t mode)
         if (&rl_all_files.open_files[i] == &rl_mapped_file)
         {
             rl_mapped_file->open_instances++;
-            ok("open instances fo %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
+            ok("open instances of %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
             return rl_fd;
         }
     } // Si on arrive ici, c'est que le fichier n'est pas déjà ouvert
     ok("no, appending to opened files\n");
     rl_all_files.open_files[rl_all_files.files_count] = rl_mapped_file;
     rl_all_files.files_count += 1;
-    rl_mapped_file->open_instances++;
+    ok("open instances of %p = %d\n", &rl_mapped_file, rl_mapped_file->open_instances);
     return rl_fd;
 }
 
@@ -427,6 +427,12 @@ int rl_close(rl_descriptor rl_fd)
     {
         descriptor.rl_file->open_instances--;
         ok("%p has %d open instances left\n", &descriptor.rl_file, descriptor.rl_file->open_instances);
+        if (descriptor.rl_file->open_instances == 0) {
+            if (shm_unlink(smo_path) != 0)
+            {
+                error("could not unlink shared memory object @ '%s'\n", smo_path);
+            }
+        }
     }
     pthread_mutex_unlock(&(descriptor.rl_file->mutex));
     return ret;
