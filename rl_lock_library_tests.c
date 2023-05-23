@@ -50,7 +50,7 @@ int main(int argc, char **argv)
         if (return_value == -1)
             error("could not set lock\n");
         ok("lock set\n"); // DEBUG
-        
+
         struct flock lock3 = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 0};
         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
         if (return_value == -1)
@@ -62,11 +62,12 @@ int main(int argc, char **argv)
             error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         struct flock lock4 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 8, .l_len = 3};
-         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock4);
-         if (return_value == -1) error("could not set lock\n");
-         ok("lock set\n"); // DEBUG
+        return_value = rl_fcntl(rl_fd1, F_SETLK, &lock4);
+        if (return_value == -1)
+            error("could not set lock\n");
+        ok("lock set\n"); // DEBUG
         // On lit le fichier
-        
+
         char buffer[6];
         ssize_t re = rl_read(rl_fd1, buffer, 4);
         buffer[5] = '\0';
@@ -79,7 +80,7 @@ int main(int argc, char **argv)
         ssize_t wr = rl_write(rl_fd1, "abcd", 4);
         if (wr == -1)
             error("could not write file\n");
-        
+
         rl_close(rl_fd1);
         ok("file descriptor closed\n"); // DEBUG
     }
@@ -106,10 +107,10 @@ int main(int argc, char **argv)
         rl_close(rl_fd2);
         ok("file descriptor closed\n"); // DEBUG
         */
-        //struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
-        //int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
-        //if (return_value == -1)
-        //    error("could not set lock\n");
+        // struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 5};
+        // int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
+        // if (return_value == -1)
+        //     error("could not set lock\n");
 
         char buffer[6];
         ssize_t re = rl_read(rl_fd2, buffer, 5);
