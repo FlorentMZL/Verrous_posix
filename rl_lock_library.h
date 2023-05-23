@@ -155,6 +155,11 @@ typedef struct
 
 typedef struct
 {
+    unsigned int readers;
+    unsigned int writers;
+    // Le cond
+    pthread_cond_t cond;
+
     int next_lock;
     // On verra plus tard
     off_t starting_offset;
@@ -166,7 +171,9 @@ typedef struct
 
 typedef struct
 {
+    // Le mutex
     pthread_mutex_t mutex;
+    // Le descripteur du SMO
     int smo_fd;
     // Devrait être à -1 par défaut? (-1 = dernier élément) : NON, -2 si il n'y a pas de verrou. 
     int first_lock;
