@@ -69,6 +69,13 @@ extern int memory_allocations;
         printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                            \
     }
 
+#define test(...)                                                                           \
+    {                                                                                       \
+        printf("\033[0;32m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
+        printf(__VA_ARGS__);                                                                \
+        printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                            \
+    }
+
 #define malloc(...)                                                          \
     ({                                                                       \
         void *ptr = malloc(__VA_ARGS__);                                     \

@@ -2397,7 +2397,7 @@ rl_descriptor rl_dup(rl_descriptor descriptor)
 
 pid_t rl_fork()
 {
-    info("forking\n");
+    info("forking %d\n", getpid());
     sem_t sem;
     sem_init(&sem, 0, 1);
     pid_t pid = fork();
