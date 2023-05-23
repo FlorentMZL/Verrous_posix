@@ -314,6 +314,9 @@ int test_5_concurrent_reads()
     return 0;
 }
 
+/**
+ * PARLER DE TIMEOUT
+*/
 int test_6_concurrent_writes()
 {
     test("starting test...\n");
