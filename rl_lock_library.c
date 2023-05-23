@@ -769,29 +769,31 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                     break;
                 else
                 {
-                    if (current_lock.type == F_RDLCK)
-                    {
-                        if (current_lock.lock_owners[0].file_descriptor == descriptor.file_descriptor && current_lock.lock_owners[0].thread_id == getpid())
-                        {
-                            if (current_lock.starting_offset <= lock->l_start)
-                                region_start = current_lock.starting_offset;
-                            if (current_lock.starting_offset + current_lock.length >= region_end)
-                                region_end = current_lock.starting_offset + current_lock.length;
-                            if (current_lock.next_lock >= 0)
-                            {
-                                current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
-                                break;
+                    if (current_lock.type == F_RDLCK) {
+                        if (current_lock.owners_count > 1) {
+                            errno = EAGAIN;
+                            error("read lock already present\n");
+                            pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                            return -1;
+                        } else { // Si il n'y a qu'un owner et que c'est le thread courant, on pourra poser un verrou par dessus.
+                            if (current_lock.lock_owners[0].file_descriptor == descriptor.file_descriptor && current_lock.lock_owners[0].thread_id == getpid()) {
+                                if (current_lock.starting_offset <= lock->l_start) region_start = current_lock.starting_offset;
+                                if (current_lock.starting_offset + current_lock.length >= region_end) region_end = current_lock.starting_offset + current_lock.length;
+                                if (current_lock.next_lock >=0) {
+                                    current_lock = descriptor.rl_file->lock_table[current_lock.next_lock];
+                                    break;
+                                } else if (current_lock.next_lock == -1) {
+                                    has_next = FALSE;
+                                }
+                            } else {
+                                errno = EAGAIN;
+                                error("read lock already present\n");
+                                pthread_mutex_unlock(&(descriptor.rl_file->mutex));
+                                return -1;
                             }
-                            else if (current_lock.next_lock == -1)
-                            {
-                                has_next = FALSE;
-                            }
-                        }
-                        while (has_next && current_lock.readers > 0) {
-                            trace("waiting for readers to go away...");
-                            pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
                         }
                     }
+
                     else if (current_lock.type == F_WRLCK)
                     {
                         BOOLEAN same_owner = FALSE;
