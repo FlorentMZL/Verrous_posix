@@ -24,7 +24,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 2
+#define LOG_LEVEL 5
 
 extern int memory_allocations;
 
