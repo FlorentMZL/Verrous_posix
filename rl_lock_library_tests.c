@@ -109,7 +109,7 @@ int test_1_read_then_write()
 
 int test_2_fusion_division_lock()
 {
-    info("starting test 2: fusion lock\n");
+    info("starting test 2: fusion lock\n");//
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -117,25 +117,25 @@ int test_2_fusion_division_lock()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};
+    struct flock lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 10};//Premier verrou en écriture
     int return_value = rl_fcntl(rl_fd1, F_SETLK, &lock);
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
 
-    struct flock lock2 = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 15};
+    struct flock lock2 = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 15};//2e verrou en lecture qui le chevauche => fusion => gros verrou en lecture
     return_value = rl_fcntl(rl_fd1, F_SETLK, &lock2);
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
 
-    struct flock lock3 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 10, .l_len = 5};
+    struct flock lock3 = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 10, .l_len = 5};//On déverouille au "milieu" du segment pour obtenir 2 segments
     return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
 
-    char buffer[6];
+    char buffer[6];//On peut lire car c'est petit
     ssize_t bytes_written = rl_read(rl_fd1, buffer, 5);
     buffer[5] = '\0';
     if (bytes_written == -1)
@@ -146,7 +146,7 @@ int test_2_fusion_division_lock()
     {
         ok("read : = %s\n", buffer); // DEBUG
     }
-    char buffer2[14];
+    char buffer2[14];//On ne peut pas lire, trop gros.
     bytes_written = rl_read(rl_fd1, buffer2, 13);
     buffer2[13] = '\0';
     if (bytes_written == -1)
@@ -229,7 +229,7 @@ int test_4_promoting()
     if (return_value == -1)
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
-    struct flock lock2 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
+    struct flock lock2 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};//On change le lock Read en Write. 
     return_value = rl_fcntl(rl_fd1, F_SETLK, &lock2);
     if (return_value == -1)
         error("could not set lock\n");
@@ -239,7 +239,7 @@ int test_4_promoting()
     buffer2[13] = '\0';
     if (bytes_written == -1)
     {
-        error("could not read file\n");
+        error("could not read file\n");//On ne pourra plus lire sur la partie en question.
     }
     else
     {

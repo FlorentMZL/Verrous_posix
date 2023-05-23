@@ -2631,11 +2631,11 @@ ssize_t rl_read(rl_descriptor descriptor, void *buffer, size_t count)
             fstat(descriptor.file_descriptor, &statbuf);
             lengthCurrent = statbuf.st_size - current_lock.starting_offset;
         }
-        info("i : %d seeks : %ld %ld %ld\n", i, lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
+        
         // Si le lock est de type F_RDLCK et que le thread courant est dans la liste des lock owners, alors on peut lire
         if (current_lock.type == F_RDLCK)
         {
-
+info("i : %d seeks : %ld %ld %ld\n", i, lseek(descriptor.file_descriptor, 0, SEEK_CUR), current_lock.starting_offset, current_lock.starting_offset + lengthCurrent);
             const size_t owners_count = current_lock.owners_count;
             for (size_t j = 0; j < owners_count; j++)
             {
