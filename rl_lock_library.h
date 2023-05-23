@@ -18,7 +18,7 @@
 #include <fcntl.h>     /* For O_* constants    */
 #include <pthread.h>   /* For mutexes      */
 #include <semaphore.h> /* For semaphores   */
-
+#include <signal.h>    /* For signals     */
 /**
  * #DEFINE propres à la librairie
  */
@@ -26,7 +26,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 2
+#define LOG_LEVEL 1
 
 extern int memory_allocations;
 
