@@ -26,7 +26,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 4
+#define LOG_LEVEL -1
 
 extern int memory_allocations;
 
@@ -73,7 +73,7 @@ extern int memory_allocations;
     {                                                                                       \
         printf("\033[0;32m[#%d] %s @ %03d [%s]: ", getpid(), __FILE__, __LINE__, __func__); \
         printf(__VA_ARGS__);                                                                \
-        printf("\t%s (%d)\n\033[0;37m", strerror(errno), errno);                            \
+        printf("\033[0;37m");                                                               \
     }
 
 #define malloc(...)                                                          \
