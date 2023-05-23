@@ -1565,6 +1565,8 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 pthread_mutex_unlock(&(descriptor.rl_file->mutex));
                                 pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
                                 debug("mutex unlocked\n");
+                                
+                               
                             }
                             if (descriptor.rl_file->first_lock == -2)
                             {
@@ -2169,6 +2171,14 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         for (int k = j; k < current_lock.owners_count - 1; k++)
                             current_lock.lock_owners[k] = current_lock.lock_owners[k + 1];
                         current_lock.owners_count--;
+                        if (current_lock.type == F_RDLCK)
+                        {
+                            current_lock.readers--;
+                        }
+                        else
+                        {
+                            current_lock.writers--;
+                        }
                         if (current_lock.type == F_RDLCK)
                         {
                             current_lock.readers--;
