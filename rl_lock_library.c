@@ -170,7 +170,6 @@ static int rl_path(char *smo_path, int fd, struct stat *fstats, size_t max_size)
 
 /**
  * La fonction qui vérifie si un thread est toujours en vie
- */
 static BOOLEAN rl_is_thread_alive(pid_t pid)
 {
     if (kill(pid, 0) == 0)
@@ -178,6 +177,7 @@ static BOOLEAN rl_is_thread_alive(pid_t pid)
     else
         return FALSE;
 }
+ */
 
 /**
  * Terminologie:
@@ -1213,7 +1213,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                             }
                             else
                             {
-                                info("previous index = %d\n", previous_index[0]);
+                                debug("previous index = %d\n", previous_index[0]);
                                 descriptor.rl_file->lock_table[previous_index[0]].next_lock = index;
                                 break;
                             }
@@ -1247,7 +1247,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         {
                             if (current_lock.starting_offset == left_lock_start && current_lock.length == left_lock_length && current_lock.type == lock_type)
                             {
-                                info("lock already exists in this area\n");
+                                debug("lock already exists in this area\n");
                                 // On s'ajoute à ce lock là
                                 current_lock.lock_owners[current_lock.owners_count].thread_id = getpid();
                                 current_lock.lock_owners[current_lock.owners_count].file_descriptor = descriptor.file_descriptor;
@@ -1426,14 +1426,14 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                         info("lock added on the right [ start = %ld | length = %ld ]\n", right_lock_start, right_lock_length);
                     }
                 }
-                info("locks added (or not) after unlocking\n");
+                ok("locks added (or not) after unlocking\n");
                 pthread_mutex_unlock(&descriptor.rl_file->mutex);
                 return 0;
             }
         }
         break;
     case F_SETLKW:
-        info("first lock index = %d\n", descriptor.rl_file->first_lock);
+        debug("first lock index = %d\n", descriptor.rl_file->first_lock);
         if (descriptor.rl_file->first_lock == -2 && (lock->l_type == F_RDLCK || lock->l_type == F_WRLCK))
         {
             // Si il n'y a aucun verrou sur le fichier, on pose direct
@@ -2483,7 +2483,7 @@ rl_descriptor rl_dup(rl_descriptor descriptor)
 
 pid_t rl_fork()
 {
-    info("forking %ld\n", getpid());
+    info("forking %d\n", getpid());
     pid_t pid = fork();
     if (pid == 0)
     {

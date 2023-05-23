@@ -7,7 +7,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <signal.h>
 
 #include <sys/types.h> /* For types    */
 #include <sys/stat.h>  /* For mode constants   */
@@ -19,14 +18,16 @@
 #include <pthread.h>   /* For mutexes      */
 #include <semaphore.h> /* For semaphores   */
 #include <signal.h>    /* For signals     */
+
 /**
  * #DEFINE propres à la librairie
  */
+
 #define BOOLEAN uint8_t
 #define FALSE 0
 #define TRUE !FALSE
 
-#define LOG_LEVEL 3
+#define LOG_LEVEL -1
 
 extern int memory_allocations;
 
@@ -127,16 +128,28 @@ extern int memory_allocations;
         info("lock = [ offset = %ld, length = %ld, type = %d ]\n", flock->l_start, flock->l_len, flock->l_type); \
     }
 
-#define pthread_mutex_lock(lock)          \
-    {                                     \
-        info("locking mutex %p\n", lock); \
-        pthread_mutex_lock(lock);         \
+#define pthread_mutex_lock(lock)            \
+    {                                       \
+        info("locking mutex @ %p\n", lock); \
+        pthread_mutex_lock(lock);           \
     }
 
-#define pthread_mutex_unlock(lock)          \
-    {                                       \
-        info("unlocking mutex %p\n", lock); \
-        pthread_mutex_unlock(lock);         \
+#define pthread_mutex_unlock(lock)            \
+    {                                         \
+        info("unlocking mutex @ %p\n", lock); \
+        pthread_mutex_unlock(lock);           \
+    }
+
+#define pthread_cond_broadcast(cond)            \
+    {                                           \
+        info("broadcasting cond @ %p\n", cond); \
+        pthread_cond_broadcast(cond);             \
+    }
+
+#define pthread_cond_wait(cond, mutex)                        \
+    {                                                         \
+        info("waiting on cond %p @ mutex %p\n", cond, mutex); \
+        pthread_cond_wait(cond, mutex);                       \
     }
 
 /**

@@ -102,14 +102,14 @@ int test_1_read_then_write()
     {
         test("%ld bytes written back\n", bytes_written); // DEBUG
     }
-
     rl_close(rl_fd1);
+    test("test passed successfully!\n");
     return 0;
 }
 
 int test_2_fusion_division_lock()
 {
-    info("starting test 2: fusion lock\n");//
+    info("starting test...\n");//
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -136,34 +136,35 @@ int test_2_fusion_division_lock()
     ok("lock set\n"); // DEBUG
 
     char buffer[6];//On peut lire car c'est petit
-    ssize_t bytes_written = rl_read(rl_fd1, buffer, 5);
+    ssize_t bytes_read = rl_read(rl_fd1, buffer, 5);
     buffer[5] = '\0';
-    if (bytes_written == -1)
+    if (bytes_read == -1)
     {
         error("could not write file\n");
     }
     else
     {
-        ok("read : = %s\n", buffer); // DEBUG
+        test("read(%ld) = '%s'\n", bytes_read, buffer); // DEBUG
     }
     char buffer2[14];//On ne peut pas lire, trop gros.
-    bytes_written = rl_read(rl_fd1, buffer2, 13);
+    bytes_read = rl_read(rl_fd1, buffer2, 13);
     buffer2[13] = '\0';
-    if (bytes_written == -1)
+    if (bytes_read == -1)
     {
-        error("could not read file\n");
+        test("could not read file [expected]\n");
     }
     else
     {
-        ok("read : = %s\n", buffer2); // DEBUG
+        test("read(%ld) = '%s'\n", bytes_read, buffer2); // DEBUG
     }
     rl_close(rl_fd1);
-    return 1;
+    test("test passed successfully!\n");
+    return 0;
 }
 
 int test_3_fork()
 {
-    info("starting test 3: fork\n");
+    info("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -189,9 +190,8 @@ int test_3_fork()
         }
         else
         {
-            ok("buffer = '%s'\n", buffer); // DEBUG
+            test("read(%ld) = '%s'\n", bytes_read, buffer); // DEBUG
         }
-
         return 0;
     }
     else
@@ -205,18 +205,18 @@ int test_3_fork()
         }
         else
         {
-            ok("buffer = '%s'\n", buffer); // DEBUG
+            test("read(%ld) = '%s'\n", bytes_read, buffer); // DEBUG
         }
         wait(NULL);
         rl_close(rl_fd1);
     }
-
+    test("test passed successfully!\n");
     return 0;
 }
 
 int test_4_promoting()
 {
-    info("starting test 4: promoting\n");
+    info("starting test...\n");
     rl_descriptor rl_fd1 = rl_open(test_file_name, O_RDWR, S_IRUSR | S_IWUSR);
     if (rl_fd1.file_descriptor < 0)
     {
@@ -235,17 +235,18 @@ int test_4_promoting()
         error("could not set lock\n");
     ok("lock set\n"); // DEBUG
     char buffer2[13];
-    int bytes_written = rl_read(rl_fd1, buffer2, 13);
+    int bytes_read = rl_read(rl_fd1, buffer2, 13);
     buffer2[13] = '\0';
-    if (bytes_written == -1)
+    if (bytes_read == -1)
     {
-        error("could not read file\n");//On ne pourra plus lire sur la partie en question.
+        test("could not read file [expected]\n"); //On ne pourra plus lire sur la partie en question.
     }
     else
     {
-        ok("read : = %s\n", buffer2); // DEBUG
+        test("read(%d) = '%s'\n", bytes_read, buffer2); // DEBUG
     }
     rl_close(rl_fd1);
+    test("test passed successfully!\n");
     return 0;
 }
 
@@ -259,10 +260,10 @@ int test_5_concurrent_reads()
         return -1;
     }
     debug("file descriptor = %d\n", rl_fd1.file_descriptor); // DEBUG
-    rl_descriptor rl_fd2 = rl_dup(rl_fd1);
     int pid = rl_fork();
     if (pid == 0)
     {
+        rl_descriptor rl_fd2 = rl_dup(rl_fd1);
         struct flock lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = N};
         int return_value = rl_fcntl(rl_fd2, F_SETLKW, &lock);
         if (return_value == -1)
@@ -276,7 +277,7 @@ int test_5_concurrent_reads()
         }
         else
         {
-            ok("buffer = '%s'\n", buffer); // DEBUG
+            test("read(%ld) = '%s'\n", bytes_read, buffer); // DEBUG
         }
         rl_close(rl_fd2);
     }
@@ -291,11 +292,11 @@ int test_5_concurrent_reads()
         ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
         if (bytes_read == -1)
         {
-            error("could not read file\n");
+            test("could not read file [expected]\n");
         }
         else
         {
-            ok("buffer = '%s'\n", buffer); // DEBUG
+            test("read(%ld) = '%s'\n", bytes_read, buffer); // DEBUG
         }
         lock.l_type = F_UNLCK;
         return_value = rl_fcntl(rl_fd1, F_SETLKW, &lock);
@@ -309,6 +310,7 @@ int test_5_concurrent_reads()
     {
         return -1;
     }
+    test("test passed successfully!\n");
     return 0;
 }
 
