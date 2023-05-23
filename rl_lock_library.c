@@ -787,8 +787,10 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
                                 has_next = FALSE;
                             }
                         }
-                        while (!has_next && current_lock.readers > 0)
+                        while (has_next && current_lock.readers > 0) {
+                            trace("waiting for readers to go away...");
                             pthread_cond_wait(&current_lock.cond, &(descriptor.rl_file->mutex));
+                        }
                     }
                     else if (current_lock.type == F_WRLCK)
                     {
@@ -2121,7 +2123,7 @@ int rl_fcntl(rl_descriptor descriptor, int command, struct flock *lock)
 
 rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor)
 {
-    info("duplicating descriptor from %d\n", descriptor);
+    info("duplicating descriptor from %d\n", descriptor.file_descriptor);
     // On duplique le descripteur de fichier
     rl_descriptor new_descriptor;
     // Nouveau lock owner
@@ -2158,7 +2160,7 @@ rl_descriptor rl_dup2(rl_descriptor descriptor, int new_file_descriptor)
 
 rl_descriptor rl_dup(rl_descriptor descriptor)
 {
-    info("duplicating descriptor from %d\n", descriptor);
+    info("duplicating descriptor from %d\n", descriptor.file_descriptor);
     // On duplique le descripteur de fichier
     rl_descriptor new_descriptor;
     int new_file_descriptor = dup(descriptor.file_descriptor);

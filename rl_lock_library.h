@@ -120,13 +120,13 @@ extern int memory_allocations;
 
 #define pthread_mutex_lock(lock)        \
     {                                   \
-        trace("locking mutex\n");       \
+        info("locking mutex %p\n", lock);       \
         pthread_mutex_lock(lock);       \
     }
 
 #define pthread_mutex_unlock(lock)      \
     {                                   \
-        trace("unlocking mutex\n");     \
+        info("unlocking mutex %p\n", lock);     \
         pthread_mutex_unlock(lock);     \
     }
 

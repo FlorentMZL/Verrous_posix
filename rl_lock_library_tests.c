@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
         ok("lock set\n"); // DEBUG  
         sleep(5);
         struct flock lock3 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 5, .l_len = 10};
-         return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
+        return_value = rl_fcntl(rl_fd1, F_SETLK, &lock3);
         if (return_value == -1) error("could not set lock\n");
         ok("lock set\n"); // DEBUG
         struct flock lock5 = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 19, .l_len = 10};
