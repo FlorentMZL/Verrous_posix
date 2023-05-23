@@ -2343,7 +2343,7 @@ pid_t rl_fork()
 {
     info("forking\n");
     sem_t sem;
-    sem_init(&sem, 1, 1);
+    sem_init(&sem, 0, 1);
     pid_t pid = fork();
     if (pid == 0)
     {
@@ -2379,7 +2379,9 @@ pid_t rl_fork()
     {
         error("fork() failed\n");
     }
-    sem_wait(&sem);
+    while (TRUE) {
+        if (sem_wait(&sem) == 0) break;
+    }
     sem_destroy(&sem);
     return pid;
 }
