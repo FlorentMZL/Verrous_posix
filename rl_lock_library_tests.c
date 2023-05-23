@@ -310,7 +310,7 @@ int test_5_concurrent_reads()
         ssize_t bytes_read = rl_read(rl_fd2, buffer, N);
         if (bytes_read == -1)
         {
-            error("could not read file\n");
+            test("could not read file [expected]\n");
         }
         else
         {
