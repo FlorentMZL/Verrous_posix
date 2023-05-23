@@ -76,13 +76,14 @@ int test_1_read_then_write()
 
     char buffer[N + 1];
     ssize_t bytes_read = rl_read(rl_fd1, buffer, N);
+    buffer[N + 1] = '\0'; 
     if (bytes_read == -1)
     {
         error("could not read file\n");
     }
     else
     {
-        ok("buffer = '%s'\n", buffer); // DEBUG
+        test("read %ld bytes\n", bytes_read); // DEBUG
     }
 
     lock.l_type = F_UNLCK;
@@ -99,7 +100,7 @@ int test_1_read_then_write()
     }
     else
     {
-        ok("bytes_written = %ld\n", bytes_written); // DEBUG
+        test("%ld bytes written back\n", bytes_written); // DEBUG
     }
 
     rl_close(rl_fd1);
