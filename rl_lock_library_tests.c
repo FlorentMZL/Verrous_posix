@@ -551,88 +551,83 @@ int test_9_concurrent_reads_and_writes_with_forks()
         rl_close(rl_fd1);
         exit(0);
     }
-
     int status;
     waitpid(pid1, &status, 0);
     waitpid(pid2, &status, 0);
-
     rl_close(rl_fd1);
     return 0;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if (argc > 1) {
+    if (argc > 1)
+    {
         int test_number = atoi(argv[1]);
-        switch (test_number) {
-            case 1:
-                return test_1_read_then_write(); 
-            case 2:
-                return test_2_read_then_write_blocking();
-            case 3:
-                return test_3_write_then_read();
-            case 4:
-                return test_4_write_then_read_blocking();
-            case 5:
-                return test_5_concurrent_reads();
-            case 6:
-                return test_6_concurrent_writes();
-            case 7:
-                return test_7_lock_upgrade();
-            case 8:
-                return test_8_concurrent_reads_and_writes_with_threads();
-            case 9:
-                return test_9_concurrent_reads_and_writes_with_forks();
-            default:
-                printf("Invalid test number\n");
-                break;
+        switch (test_number)
+        {
+        case 1:
+            return test_1_read_then_write();
+        case 2:
+            return test_2_read_then_write_blocking();
+        case 3:
+            return test_3_write_then_read();
+        case 4:
+            return test_4_write_then_read_blocking();
+        case 5:
+            return test_5_concurrent_reads();
+        case 6:
+            return test_6_concurrent_writes();
+        case 7:
+            return test_7_lock_upgrade();
+        case 8:
+            return test_8_concurrent_reads_and_writes_with_threads();
+        case 9:
+            return test_9_concurrent_reads_and_writes_with_forks();
+        default:
+            printf("Invalid test number\n");
+            break;
         }
-    } else {
+    }
+    else
+    {
         printf("Running all tests...\n");
         int test_result = 0;
         pthread_t thread;
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_1_read_then_write, NULL);
+        pthread_create(&thread, NULL, (void *)&test_1_read_then_write, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_2_read_then_write_blocking, NULL);
+        pthread_create(&thread, NULL, (void *)&test_2_read_then_write_blocking, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_3_write_then_read, NULL);
+        pthread_create(&thread, NULL, (void *)&test_3_write_then_read, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_4_write_then_read_blocking, NULL);
+        pthread_create(&thread, NULL, (void *)&test_4_write_then_read_blocking, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_5_concurrent_reads, NULL);
+        pthread_create(&thread, NULL, (void *)&test_5_concurrent_reads, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_6_concurrent_writes, NULL);
+        pthread_create(&thread, NULL, (void *)&test_6_concurrent_writes, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_7_lock_upgrade, NULL);
+        pthread_create(&thread, NULL, (void *)&test_7_lock_upgrade, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_8_concurrent_reads_and_writes_with_threads, NULL);
+        pthread_create(&thread, NULL, (void *)&test_8_concurrent_reads_and_writes_with_threads, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
         // Run all tests sequentially
-        pthread_create(&thread, NULL, (void*) &test_9_concurrent_reads_and_writes_with_forks, NULL);
+        pthread_create(&thread, NULL, (void *)&test_9_concurrent_reads_and_writes_with_forks, NULL);
         pthread_join(thread, NULL);
-        pthread_exit(&thread);
-        if (test_result == 0) {
+        if (test_result == 0)
+        {
             printf("All tests passed!\n");
-        } else {
+        }
+        else
+        {
             printf("Some tests failed!\n");
         }
     }
-    
     return 0;
 }
